@@ -1,39 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-onchain`](https://www.npmjs.com/package/create-onchain).
 
 
 ## Getting Started
 
-First, install dependencies:
+Install dependencies:
 
 ```bash
 npm install
-# or
-yarn install
-# or
-pnpm install
-# or
-bun install
 ```
 
-Next, run the development server:
+Set up environment variables:
+
+```bash
+cp .env.example .env.local
+```
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_AFRICASTALKING_USERNAME`
+- `NEXT_AFRICASTALKING_API_KEY`
+- `NEXT_AFRICASTALKING_URL`
 
-## Learn More
+## API Routes
 
-To learn more about OnchainKit, see our [documentation](https://docs.base.org/onchainkit).
-
-To learn more about Next.js, see the [Next.js documentation](https://nextjs.org/docs).
+- `/api/orders` - Create and manage orders
+- `/api/airtime/send` - Send airtime to phone numbers
+- `/api/airtime/status` - Check airtime transaction status
+- `/api/prices` - Get current airtime prices
