@@ -1,9 +1,11 @@
 "use client";
+"use client";
+"use client";
 import { useEffect, useState } from "react";
 import { Wallet } from "@coinbase/onchainkit/wallet";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { Transaction } from "@coinbase/onchainkit/transaction";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useAccount } from 'wagmi'
 import styles from "./page.module.css";
 
 export default function Home() {
@@ -11,6 +13,7 @@ export default function Home() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amountKes, setAmountKes] = useState("");
   const [order, setOrder] = useState<any>(null);
+  const { address } = useAccount();
 
   useEffect(() => {
     if (!isMiniAppReady) {
@@ -30,7 +33,7 @@ export default function Home() {
 
   // Create order mutation
   const createOrderMutation = useMutation({
-    mutationFn: (data: { phoneNumber: string; amountKes: number }) =>
+    mutationFn: (data: { phoneNumber: string; amountKes: number; walletAddress: string }) =>
       fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,10 +55,11 @@ export default function Home() {
   });
 
   const handleCreateOrder = () => {
-    if (!phoneNumber || !amountKes) return;
+    if (!phoneNumber || !amountKes || !address) return;
     createOrderMutation.mutate({
       phoneNumber,
       amountKes: parseFloat(amountKes),
+      walletAddress: address,
     });
   };
 
@@ -95,11 +99,16 @@ export default function Home() {
             )}
             <button
               onClick={handleCreateOrder}
-              disabled={createOrderMutation.isPending}
+              disabled={createOrderMutation.isPending || !address}
               className={styles.button}
             >
-              {createOrderMutation.isPending ? "Creating..." : "Create Order"}
+              {createOrderMutation.isPending
+                ? "Creating..."
+                : address
+                ? "Create Order"
+                : "Connect Wallet"}
             </button>
+            {!address && <p>Connect your wallet to create an order.</p>}
           </div>
         ) : (
           <div className={styles.order}>
