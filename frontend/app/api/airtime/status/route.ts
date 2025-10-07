@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     const data = await request.json()
     // Example data: { phoneNumber, description, status, requestId, discount, value }
 
-    const { requestId, status, phoneNumber, value } = data
+    const { requestId, status } = data
 
     // Find airtime transaction
     const { data: transaction, error: txError } = await supabase
