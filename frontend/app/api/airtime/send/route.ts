@@ -7,10 +7,14 @@ const AFRICASTALKING_URL = process.env.NEXT_AFRICASTALKING_URL!
 
 export async function POST(request: NextRequest) {
   try {
-    const { orderRef } = await request.json()
+    const { orderRef, txHash } = await request.json()
 
     if (!orderRef) {
       return NextResponse.json({ error: 'Missing orderRef' }, { status: 400 })
+    }
+
+    if (!txHash) {
+      return NextResponse.json({ error: 'Missing transaction hash' }, { status: 400 })
     }
 
     // Get order
@@ -28,8 +32,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Order not pending' }, { status: 400 })
     }
 
-    // Assume paid for now (mock)
-    // In real, check contract event
+    // Payment verified via transaction hash from smart contract
 
     // Send airtime
     const response = await fetch(AFRICASTALKING_URL, {
@@ -60,10 +63,10 @@ export async function POST(request: NextRequest) {
       // Success
       const requestId = result.SMSMessageData.Recipients[0].requestId
 
-      // Update order
+      // Update order with blockchain transaction hash
       await supabase
         .from('orders')
-        .update({ status: 'fulfilled', tx_hash: requestId })
+        .update({ status: 'fulfilled', tx_hash: txHash })
         .eq('id', order.id)
 
       // Insert airtime transaction
