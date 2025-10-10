@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
         order_ref: orderRef,
         phone_number: phoneNumber,
         product_type: 'airtime',
-        amount_kes: amountKes,
+        amount: amountKes,
         amount_usdc: amountUsdc,
         status: 'pending',
         wallet_address: walletAddress, // Store wallet address
