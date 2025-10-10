@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
         recipients: [
           {
             phoneNumber: order.phone_number,
-            amount: `${currency} ${order.amount_kes.toFixed(2)}`
+            amount: `${currency} ${order.amount.toFixed(2)}`
           }
         ],
         maxNumRetry: 3,
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
         .insert({
           order_id: order.id,
           phone_number: order.phone_number,
-          amount: order.amount_kes,
+          amount: order.amount,
           currency: currency,
           provider_request_id: requestId,
           provider_status: 'Success'
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
         .insert({
           order_id: order.id,
           phone_number: order.phone_number,
-          amount: order.amount_kes,
+          amount: order.amount,
           currency: currency,
           provider_status: 'Failed',
           error_message: errorMessage
