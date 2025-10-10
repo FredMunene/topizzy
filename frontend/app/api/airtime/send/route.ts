@@ -5,6 +5,9 @@ import { baseSepolia } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 const AFRICASTALKING_USERNAME = process.env.NEXT_AFRICASTALKING_USERNAME!
 const AFRICASTALKING_API_KEY = process.env.NEXT_AFRICASTALKING_API_KEY!
 const AFRICASTALKING_URL = process.env.NEXT_AFRICASTALKING_URL!

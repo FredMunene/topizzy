@@ -173,7 +173,7 @@ export default function Home() {
         value: amountWei,
         deadline,
         walletClient,
-        chainId: 84532 // Base sepolia
+        chainId: (await walletClient.getChainId?.()) ?? 84532 // use wallet chainId when available
       });
       
       if (permitSig.error) throw new Error(permitSig.error);

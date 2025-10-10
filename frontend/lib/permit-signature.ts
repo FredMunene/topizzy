@@ -27,6 +27,19 @@ export async function generatePermitSignature({
       transport: http()
     });
 
+    // Read token name for accurate EIP-712 domain binding
+    const tokenName = await publicClient.readContract({
+      address: tokenAddress,
+      abi: [{
+        name: 'name',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ name: '', type: 'string' }]
+      }],
+      functionName: 'name'
+    }) as string;
+
     // Get nonce
     const nonce = await publicClient.readContract({
       address: tokenAddress,
@@ -41,13 +54,13 @@ export async function generatePermitSignature({
       args: [owner]
     });
 
-    // Domain
+    // Domain: use on-chain token name; USDC typically uses version "2"
     const domain = {
-      name: 'USD Coin',
+      name: tokenName,
       version: '2',
       chainId,
       verifyingContract: tokenAddress
-    };
+    } as const;
 
     // Types
     const types = {
