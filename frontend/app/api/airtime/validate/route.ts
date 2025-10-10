@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // 3. Verify data
     if (
       phoneNumber !== transaction.phone_number ||
-      Number(amount) !== transaction.amount_kes
+      Number(amount) !== transaction.amount
     ) {
       console.warn("Data mismatch in validation callback");
       return NextResponse.json({ status: 'Failed' }, { status: 400 });
