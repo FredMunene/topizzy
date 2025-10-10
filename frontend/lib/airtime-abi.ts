@@ -8,7 +8,7 @@ export const AIRTIME_ABI = [
     "type": "function",
     "name": "depositWithPermit",
     "inputs": [
-      {"name": "token", "type": "address", "internalType": "address"},
+      {"name": "depositRef", "type": "string", "internalType": "string"},
       {"name": "amount", "type": "uint256", "internalType": "uint256"},
       {"name": "deadline", "type": "uint256", "internalType": "uint256"},
       {"name": "v", "type": "uint8", "internalType": "uint8"},
@@ -21,7 +21,11 @@ export const AIRTIME_ABI = [
   {
     "type": "function",
     "name": "refund",
-    "inputs": [{"name": "orderRef", "type": "string", "internalType": "string"}],
+    "inputs": [
+      {"name": "orderRef", "type": "string", "internalType": "string"},
+      {"name": "receiver", "type": "address", "internalType": "address"},
+      {"name": "amount", "type": "uint256", "internalType": "uint256"}
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -35,9 +39,26 @@ export const AIRTIME_ABI = [
   {
     "type": "function",
     "name": "withdrawTreasury",
-    "inputs": [],
+    "inputs": [
+      {"name": "receiver", "type": "address", "internalType": "address"},
+      {"name": "amount", "type": "uint256", "internalType": "uint256"}
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "depositCounter",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "uint256", "internalType": "uint256"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "usdcToken",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "address", "internalType": "address"}],
+    "stateMutability": "view"
   },
   {
     "type": "event",
@@ -45,6 +66,25 @@ export const AIRTIME_ABI = [
     "inputs": [
       {"name": "orderRef", "type": "string", "indexed": false, "internalType": "string"},
       {"name": "payer", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Refunded",
+    "inputs": [
+      {"name": "orderRef", "type": "string", "indexed": false, "internalType": "string"},
+      {"name": "receiver", "type": "address", "indexed": false, "internalType": "address"},
+      {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TreasuryWithdrawal",
+    "inputs": [
+      {"name": "receiver", "type": "address", "indexed": false, "internalType": "address"},
       {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
     ],
     "anonymous": false
