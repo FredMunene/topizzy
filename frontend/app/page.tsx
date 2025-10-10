@@ -422,7 +422,7 @@ export default function Home() {
                 </div>
                 <div className={styles.summaryRow}>
                   <span>You will pay:</span>
-                  <span className={styles.summaryValueLarge}>{order.amountUsdc} USDC</span>
+                  <span className={styles.summaryValueLarge}>{Number(order.amountUsdc).toFixed(2)} USDC</span>
                 </div>
               </div>
 
