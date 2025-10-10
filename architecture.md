@@ -12,13 +12,15 @@ This document provides an overview of the project's architecture, logic flow, an
 | order_ref      | TEXT      | Order reference number                    |
 | phone_number   | TEXT      | Phone number for airtime                  |
 | product_type   | TEXT      | Type of product (e.g., "airtime")        |
-| amount_kes     | NUMERIC   | Amount in KES                             |
+| amount_kes     | NUMERIC   | Amount in local currency                  |
 | amount_usdc    | NUMERIC   | Amount in USDC                            |
 | status         | TEXT      | Order status (e.g., "pending", "fulfilled", "refunded") |
 | wallet_address | TEXT      | User's wallet address                     |
+| currency       | TEXT      | Currency code (e.g., "KES", "TZS", "UGX", "RWF") |
 | created_at     | TIMESTAMP | Order creation timestamp                |
 | updated_at     | TIMESTAMP | Order update timestamp                  |
-| tx_hash        | TEXT      | Blockchain transaction hash               |
+| tx_hash        | TEXT      | Blockchain payment transaction hash       |
+| refund_tx_hash | TEXT      | Blockchain refund transaction hash (if refunded) |
 
 ### `prices`
 
@@ -37,7 +39,8 @@ This document provides an overview of the project's architecture, logic flow, an
 | id                  | UUID      | Unique transaction identifier                   |
 | order_id            | UUID      | Foreign key referencing the `orders` table      |
 | phone_number        | TEXT      | Phone number for airtime                        |
-| amount_kes          | NUMERIC   | Amount in KES                                   |
+| amount              | NUMERIC   | Amount                                          |
+| currency            | TEXT      | Currency code (e.g., "KES")                     |
 | provider_request_id | TEXT      | Africa's Talking request ID                     |
 | provider_status     | TEXT      | Status from Africa's Talking (e.g., "Success", "Failed") |
 | created_at          | TIMESTAMP | Transaction creation timestamp                  |
@@ -57,38 +60,40 @@ This contract manages the airtime distribution process.
 *   **State Variables:**
     *   `treasury`: Address of the treasury, which can withdraw funds and issue refunds.
     *   `depositCounter`: Counter for the number of deposits.
-    *   `contractAddress`: Address of the contract, set by the deployer.
+    *   `usdcToken`: Address of the USDC ERC20 token (immutable, set at deployment).
 *   **Modifiers:**
     *   `onlyTreasury`:  Restricts function access to the treasury address.
 *   **Functions:**
-    *   `constructor(address _contractAddress)`: Sets the treasury and contract address.
+    *   `constructor(address _ERC20TokenAddress, address _treasury)`: Sets the USDC token address and treasury address.
         *   **Parameters:**
-            *   `_contractAddress`: The address of the contract.
-    *   `depositWithPermit(string memory depositRef, address token, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s)`: Allows users to deposit tokens using a permit signature for gasless approval.
+            *   `_ERC20TokenAddress`: The address of the USDC token contract.
+            *   `_treasury`: The address of the treasury wallet.
+    *   `depositWithPermit(string memory depositRef, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s)`: Allows users to deposit USDC using a permit signature for gasless approval.
         *   **Parameters:**
-            *   `depositRef`: The reference of the deposit.
-            *   `token`: Address of the token being deposited.
-            *   `amount`: Amount of tokens to deposit.
+            *   `depositRef`: The reference of the deposit (order reference).
+            *   `amount`: Amount of USDC to deposit (in USDC's smallest unit, 6 decimals).
             *   `deadline`: Deadline for the permit signature.
             *   `v, r, s`: Components of the permit signature.
         *   **Returns:**
             *   `depositId`: The ID of the deposit.
         *   **Emits:**
             *   `OrderPaid(depositRef, msg.sender, amount)`
-    *   `refund(string memory orderRef, address receiver, uint256 amount, address tokenAddress) external onlyTreasury nonReentrant`: Allows the treasury to refund tokens to a receiver.
+        *   **Note:** Uses the USDC token address stored in the contract.
+    *   `refund(string memory orderRef, address receiver, uint256 amount) external onlyTreasury nonReentrant`: Allows the treasury to refund USDC to a receiver.
         *   **Parameters:**
             *   `orderRef`: Reference of the order being refunded.
             *   `receiver`: Address to receive the refund.
-            *   `amount`: Amount of tokens to refund.
-            *   `tokenAddress`: Address of the token to refund.
+            *   `amount`: Amount of USDC to refund.
         *   **Emits:**
             *   `Refunded(orderRef, receiver, amount)`
-    *   `withdrawTreasury(address receiver, uint256 amount) external onlyTreasury`: Allows the treasury to withdraw tokens.
+        *   **Note:** Uses the USDC token address stored in the contract.
+    *   `withdrawTreasury(address receiver, uint256 amount) external onlyTreasury`: Allows the treasury to withdraw USDC.
         *   **Parameters:**
-            *   `receiver`: Address to receive the withdrawn tokens.
-            *   `amount`: Amount of tokens to withdraw.
+            *   `receiver`: Address to receive the withdrawn USDC.
+            *   `amount`: Amount of USDC to withdraw.
         *   **Emits:**
             *   `TreasuryWithdrawal(receiver, amount)`
+        *   **Note:** Uses the USDC token address stored in the contract.
 
 ## Frontend API Endpoints
 
@@ -174,20 +179,29 @@ The frontend uses Next.js API routes to interact with the smart contract and oth
 
 ## Logic Flow
 
-1.  The user initiates an order on the frontend, providing their phone number, amount, and wallet address.
+1.  The user initiates an order on the frontend, providing their phone number, amount, and wallet address. As the user types in the amount, the frontend **debounces** (500ms delay) and then calls the `/api/prices` endpoint to display the real-time USDC equivalent.
 2.  The frontend sends a `POST` request to `/api/orders` to create a new order.
 3.  The `/api/orders` endpoint determines the country code from the phone number and uses it to:
     *   Determine the currency to use (KES, TZS, UGX, RWF).
     *   Enforce amount restrictions based on the country.
     *   Fetch the latest price of USDC in the determined currency from the database.
-4.  The `/api/orders` endpoint calculates the equivalent amount in USDC and stores the order details in the Supabase database with a `pending` status. It then returns the order ID and the amount of USDC to pay to the frontend.
+4.  The `/api/orders` endpoint calculates the equivalent amount in USDC and stores the order details in the Supabase database with a `pending` status, including the currency. It then returns the order ID, amount of USDC to pay, and currency to the frontend.
 5.  The frontend receives the order ID and the amount of USDC to pay from the `/api/orders` endpoint.
-6.  The frontend uses the order ID and amount to trigger the Metamask popup, prompting the user to pay the USDC amount. The `depositWithPermit` function in the smart contract is called with the amount to be paid. 
-7.  The smart contract returns the deposit ID and the amount paid. The frontend also stores the transaction hash and deposit ID.
-8.  After the payment is confirmed on the blockchain, the frontend sends a `POST` request to `/api/airtime/send` with the order reference and transaction hash. The amount to be paid is also checked against the order ID.
-9.   If the airtime transaction fails, the order status is updated to `refunded` in the `orders` table.
-10. The `/api/airtime/send` endpoint updates the Supabase record with the transaction hash.
-11. The `/api/airtime/send` endpoint uses the Africa's Talking API to send airtime to the user's phone number.
+6.  The frontend uses the order reference and amount to trigger the wallet popup, prompting the user to pay the USDC amount. The `depositWithPermit` function in the smart contract is called with the order reference, token address, amount, deadline, and permit signature (v, r, s). 
+7.  The smart contract emits an `OrderPaid` event. The frontend receives the transaction hash.
+8.  After the payment is initiated, the frontend sends a `POST` request to `/api/airtime/send` with the order reference and transaction hash.
+9.  The `/api/airtime/send` endpoint:
+    *   Verifies the blockchain transaction is successful and to the correct contract
+    *   Verifies the `OrderPaid` event was emitted
+    *   Saves the transaction hash to the database BEFORE attempting airtime send
+    *   Uses the Africa's Talking API to send airtime to the user's phone number using the stored currency
+10. If the airtime send succeeds:
+    *   Order status is updated to `fulfilled`
+    *   Airtime transaction record is created with `Success` status
+11. If the airtime send fails:
+    *   Airtime transaction record is created with `Failed` status and error message
+    *   The smart contract's `refund()` function is called to return USDC to the user
+    *   Order status is updated to `refunded` with the refund transaction hash stored
 12. Africa's Talking sends a callback to `/api/airtime/validate` to validate the transaction. The `/api/airtime/validate` endpoint verifies the callback data against the data stored in the `airtime_transactions` table.
 13. The Africa's Talking API sends status updates to `/api/airtime/status`.
 14. The `/api/airtime/status` endpoint updates the order status in the Supabase database based on the Africa's Talking status.
@@ -197,8 +211,10 @@ The frontend uses Next.js API routes to interact with the smart contract and oth
 Refunds are tracked through the following mechanisms:
 
 *   **`Refunded` event:** The `Airtime.sol` contract emits the `Refunded` event when a refund is issued.
-*   **`orders` table:** The `status` column in the `orders` table is updated to `refunded` when a refund is processed.
-*   **`airtime_transactions` table:** The `error_message` column in the `airtime_transactions` table may contain information about the reason for the refund.
+*   **`orders` table:** The `status` column in the `orders` table is updated to `refunded` when a refund is processed. The `refund_tx_hash` column stores the blockchain transaction hash of the refund.
+*   **`airtime_transactions` table:** The `error_message` column in the `airtime_transactions` table contains information about the reason for the refund.
+
+Refunds are automatically executed via the smart contract when airtime sending fails. The treasury wallet calls the `refund()` function to return USDC to the user's wallet.
 
 ## Multiple Entries from the Frontend
 
