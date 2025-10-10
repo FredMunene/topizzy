@@ -12,7 +12,7 @@ This document provides an overview of the project's architecture, logic flow, an
 | order_ref      | TEXT      | Order reference number                    |
 | phone_number   | TEXT      | Phone number for airtime                  |
 | product_type   | TEXT      | Type of product (e.g., "airtime")        |
-| amount_kes     | NUMERIC   | Amount in local currency                  |
+| amount         | NUMERIC   | Amount in local currency                  |
 | amount_usdc    | NUMERIC   | Amount in USDC                            |
 | status         | TEXT      | Order status (e.g., "pending", "fulfilled", "refunded") |
 | wallet_address | TEXT      | User's wallet address                     |
