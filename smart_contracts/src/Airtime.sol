@@ -15,9 +15,14 @@ contract Airtime is ReentrancyGuard {
 
     address public treasury;
     uint256 public depositCounter;
+    address public immutable usdcToken;  // ERC20 token address (USDC/USDT)
 
-    constructor() {
-        treasury = msg.sender;
+    constructor(address _ERC20TokenAddress, address _treasury) {
+        require(_ERC20TokenAddress != address(0), "Invalid token address");
+        require(_treasury != address(0), "Invalid treasury address");
+        
+        usdcToken = _ERC20TokenAddress;
+        treasury = _treasury;
         depositCounter = 0;
     }
 
@@ -27,18 +32,17 @@ contract Airtime is ReentrancyGuard {
     }
 
     function depositWithPermit(
-        address token,
+        string memory depositRef,
         uint256 amount,
         uint256 deadline,
         uint8 v,
         bytes32 r,
         bytes32 s
     ) external nonReentrant returns (uint256 depositId) {
-        require(token != address(0), "Invalid token");
         require(amount > 0, "Amount must be > 0");
         
-        // Execute permit for gasless approval
-        IERC20Permit(token).permit(
+        // Execute permit for gasless approval using stored USDC token
+        IERC20Permit(usdcToken).permit(
             msg.sender,
             address(this),
             amount,
@@ -48,11 +52,11 @@ contract Airtime is ReentrancyGuard {
             s
         );
         
-        // Transfer tokens from user to contract
-        IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
+        // Transfer USDC tokens from user to contract
+        IERC20(usdcToken).safeTransferFrom(msg.sender, address(this), amount);
 
         depositCounter++;
-        emit OrderPaid("orderRef", msg.sender, amount); // TODO: replace orderRef
+        emit OrderPaid(depositRef, msg.sender, amount);
 
         return depositCounter;
     }
@@ -61,7 +65,7 @@ contract Airtime is ReentrancyGuard {
         require(receiver != address(0), "Invalid receiver");
         require(amount > 0, "Amount must be > 0");
 
-        IERC20(address(0)).safeTransfer(receiver, amount); // TODO: replace address(0) with token address
+        IERC20(usdcToken).safeTransfer(receiver, amount);
 
         emit Refunded(orderRef, receiver, amount);
     }
@@ -70,7 +74,7 @@ contract Airtime is ReentrancyGuard {
         require(receiver != address(0), "Invalid receiver");
         require(amount > 0, "Amount must be > 0");
 
-        IERC20(address(0)).safeTransfer(receiver, amount); // TODO: replace address(0) with token address
+        IERC20(usdcToken).safeTransfer(receiver, amount);
 
         emit TreasuryWithdrawal(receiver, amount);
     }
