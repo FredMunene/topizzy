@@ -25,12 +25,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Determine country code from phone number
+    const countryCode = phoneNumber.substring(0, 3); // e.g., "254" for Kenya
+
+    // Currency mapping
+    const currencyMap: { [key: string]: string } = {
+      "254": "KES",
+      "255": "TZS",
+      "256": "UGX",
+      "250": "RWF",
+    };
+
+    const currency = currencyMap[countryCode] || "KES"; // Default to KES if not found
+
+    // Amount restrictions mapping
+    const amountRestrictions: { [key: string]: { lower: number; upper: number } } = {
+      "254": { lower: 5, upper: 5000 }, // Kenya
+      "256": { lower: 50, upper: 200000 }, // Uganda
+      "255": { lower: 500, upper: 200000 }, // Tanzania
+      "250": { lower: 100, upper: 40000 }, // Rwanda
+    };
+
+    const restrictions = amountRestrictions[countryCode] || amountRestrictions["254"]; // Default to Kenya if not found
+
+    if (amountKes < restrictions.lower || amountKes > restrictions.upper) {
+      return NextResponse.json(
+        { error: `Amount must be between ${restrictions.lower} and ${restrictions.upper} ${currency}` },
+        { status: 400 }
+      );
+    }
+
     // Get latest price
     const { data: priceData, error: priceError } = await supabase
       .from('prices')
       .select('price')
       .eq('token', 'USDC')
-      .eq('currency', 'KES')
+      .eq('currency', currency)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -58,7 +88,8 @@ export async function POST(request: NextRequest) {
         amount_kes: amountKes,
         amount_usdc: amountUsdc,
         status: 'pending',
-        wallet_address: walletAddress // Store wallet address
+        wallet_address: walletAddress, // Store wallet address
+        currency: currency // Store currency
       })
       .select()
       .single();
@@ -76,7 +107,8 @@ export async function POST(request: NextRequest) {
       amountKes,
       amountUsdc,
       price,
-      orderId: orderData.id
+      orderId: orderData.id,
+      currency
     });
   } catch (error) {
     console.error('Error creating order:', error);
