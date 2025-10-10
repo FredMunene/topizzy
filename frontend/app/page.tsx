@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Wallet } from "@coinbase/onchainkit/wallet";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -8,6 +8,23 @@ import { parseUnits } from 'viem'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 import styles from "./page.module.css";
+
+// Custom hook for debouncing
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}` // Base USDC
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
@@ -36,15 +53,28 @@ export default function Home() {
     }
   }, [setMiniAppReady, isMiniAppReady]);
 
-  // Fetch latest price
+  // Debounce amount input for price fetching
+  const debouncedAmount = useDebounce(amountKes, 500);
+
+  // Fetch latest price with debounced amount
   const { data: priceData } = useQuery({
-    queryKey: ["price"],
-    queryFn: () => fetch("/api/prices").then((res) => res.json()),
+    queryKey: ["price", selectedCountry.code, debouncedAmount],
+    queryFn: () => {
+      const currencyMap: { [key: string]: string } = {
+        "KE": "KES",
+        "TZ": "TZS",
+        "UG": "UGX",
+        "RW": "RWF",
+      };
+      const currency = currencyMap[selectedCountry.code] || "KES";
+      return fetch(`/api/prices?currency=${currency}`).then((res) => res.json());
+    },
+    enabled: !!debouncedAmount && parseFloat(debouncedAmount) > 0,
     refetchInterval: 30000, // every 30s
   });
 
   const price = priceData?.price || 0;
-  const amountUsdc = amountKes ? (parseFloat(amountKes) / price).toFixed(6) : "0";
+  const amountUsdc = amountKes && price > 0 ? (parseFloat(amountKes) / price).toFixed(6) : "0";
 
   // Create order mutation
   const createOrderMutation = useMutation({
@@ -81,13 +111,13 @@ export default function Home() {
       if (permitSig.error) throw new Error(permitSig.error);
       if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
       
-      // Call smart contract
+      // Call smart contract (token address now stored in contract)
       const txHash = await walletClient.writeContract({
         address: AIRTIME_CONTRACT_ADDRESS,
         abi: AIRTIME_ABI,
         functionName: 'depositWithPermit',
         args: [
-          USDC_ADDRESS,
+          order.orderRef,
           amountWei,
           BigInt(deadline),
           permitSig.v,
