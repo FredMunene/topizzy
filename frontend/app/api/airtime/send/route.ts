@@ -1,24 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { createPublicClient, http, parseUnits, createWalletClient } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
-
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
-
-const supabaseUrl = process.env.NEXT_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_SUPABASE_ANON_KEY!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-// Use service key if available to bypass RLS for server-side workflow
-const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-})
 
 const AFRICASTALKING_USERNAME = process.env.NEXT_AFRICASTALKING_USERNAME!
 const AFRICASTALKING_API_KEY = process.env.NEXT_AFRICASTALKING_API_KEY!
@@ -46,11 +31,11 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (orderError || !order) {
-return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
     if (order.status !== 'pending') {
- return NextResponse.json({ error: 'Order not pending' }, { status: 400 })
+      return NextResponse.json({ error: 'Order not pending' }, { status: 400 })
     }
 
     // Verify blockchain transaction
