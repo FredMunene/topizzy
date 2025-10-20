@@ -78,13 +78,13 @@ export default function Home() {
       if (!response.ok) throw new Error('Failed to fetch price');
       return response.json();
     },
-    enabled: !!debouncedAmount && parseFloat(debouncedAmount) > 0,
+    enabled: !!debouncedAmount && Number.parseFloat(debouncedAmount) > 0,
     refetchInterval: 30000, // every 30s
     retry: 3,
   });
 
   const price = priceData?.price || 0;
-  const amountUsdc = amountKes && price > 0 ? (parseFloat(amountKes) / price).toFixed(2) : "0.00";
+  const amountUsdc = amountKes && price > 0 ? (Number.parseFloat(amountKes) / price).toFixed(2) : "0.00";
   
   // Validate input
   const validateAmount = useCallback((value: string) => {
@@ -92,8 +92,8 @@ export default function Home() {
     
     if (!value) return;
     
-    const amount = parseFloat(value);
-    if (isNaN(amount) || amount <= 0) {
+    const amount = Number.parseFloat(value);
+    if (Number.isNaN(amount) || amount <= 0) {
       setValidationError("Please enter a valid amount");
       return;
     }
@@ -219,7 +219,7 @@ export default function Home() {
       return;
     }
     
-    if (!amountKes || parseFloat(amountKes) <= 0) {
+    if (!amountKes || Number.parseFloat(amountKes) <= 0) {
       setValidationError("Please enter a valid amount");
       return;
     }
@@ -229,7 +229,7 @@ export default function Home() {
     // Create order first
     createOrderMutation.mutate({
       phoneNumber: fullPhoneNumber,
-      amountKes: parseFloat(amountKes),
+      amountKes: Number.parseFloat(amountKes),
       walletAddress: address,
     });
   };
@@ -250,7 +250,7 @@ export default function Home() {
   };
 
   const usdcBalanceFormatted = usdcBalance 
-    ? parseFloat(formatUnits(usdcBalance.value, 6)).toFixed(2)
+    ? Number.parseFloat(formatUnits(usdcBalance.value, 6)).toFixed(2)
     : "0.00";
 
   return (
@@ -275,7 +275,7 @@ export default function Home() {
                     type="tel"
                     placeholder="743913802"
                     value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
                     className={styles.phoneInput}
                   />
                   <button 
