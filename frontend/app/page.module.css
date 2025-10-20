@@ -2,7 +2,7 @@
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #9dd3e4;
 }
 
 .headerWrapper {
@@ -20,7 +20,7 @@
 }
 
 .card {
-  background: white;
+  background: rgb(42, 176, 194);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   width: 100%;
@@ -30,7 +30,7 @@
 
 .cardHeader {
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid #636161;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -55,7 +55,7 @@
   display: block;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #4a4a4a;
+  color: #1a1a1a;
   margin-bottom: 0.5rem;
 }
 
@@ -68,7 +68,7 @@
 .phoneInput {
   flex: 1;
   padding: 0.75rem 1rem;
-  border: 1px solid #d1d1d1;
+  border: 1px solid #636161;
   border-radius: 8px;
   font-size: 1rem;
   transition: all 0.2s;
@@ -76,14 +76,14 @@
 }
 
 .phoneInput:focus {
-  border-color: #5c9c92;
+  border-color: #636161;
   box-shadow: 0 0 0 3px rgba(92, 156, 146, 0.1);
 }
 
 .countryButton {
   padding: 0.75rem 1rem;
-  background: white;
-  border: 1px solid #d1d1d1;
+  background: rgb(42, 176, 194);
+  border: 1px solid #636161;
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 500;
@@ -93,8 +93,8 @@
 }
 
 .countryButton:hover {
-  background: #f5f5f5;
-  border-color: #5c9c92;
+  background: #1fbda2;
+  border-color: #636161;
 }
 
 .helperText {
@@ -102,7 +102,7 @@
   align-items: center;
   gap: 0.375rem;
   font-size: 0.8125rem;
-  color: #0066cc;
+  color: #0171e0;
   margin-top: 0.5rem;
 }
 
@@ -121,7 +121,7 @@
 .amountInput {
   flex: 1;
   padding: 0.75rem 1rem;
-  border: 1px solid #d1d1d1;
+  border: 1px solid #636161;
   border-radius: 8px;
   font-size: 1rem;
   transition: all 0.2s;
@@ -129,7 +129,7 @@
 }
 
 .amountInput:focus {
-  border-color: #5c9c92;
+  border-color: #636161;
   box-shadow: 0 0 0 3px rgba(92, 156, 146, 0.1);
 }
 
@@ -146,8 +146,8 @@
 
 .balanceButton {
   padding: 0.75rem 1rem;
-  background: white;
-  border: 1px solid #d1d1d1;
+  background: rgb(42, 176, 194);
+  border: 1px solid #636161;
   border-radius: 8px;
   cursor: default;
   transition: all 0.2s;
@@ -158,9 +158,9 @@
 }
 
 .balanceButtonSuccess {
-  background: #e8f5e9;
-  border-color: #66bb6a;
-  color: #2e7d32;
+  background:#fbfcfc;
+  border-color: #636161;
+  color: #15a51c;
 }
 
 .balanceButtonError {
@@ -174,7 +174,7 @@
   align-items: center;
   gap: 0.375rem;
   font-size: 0.8125rem;
-  color: #6b6b6b;
+  color: #4a4a4a;
   margin-top: 0.5rem;
   flex-wrap: wrap;
 }
@@ -191,8 +191,8 @@
   align-items: center;
   padding: 1rem 0;
   margin: 1rem 0;
-  border-top: 1px solid #e5e5e5;
-  border-bottom: 1px solid #e5e5e5;
+  border-top: 1px solid #636161;
+  border-bottom: 1px solid #636161;
 }
 
 .paymentLabel {
