@@ -6,17 +6,31 @@ export async function GET(request: NextRequest) {
   const currency = searchParams.get('currency') || 'KES';
 
   try {
-    let price = 0; // Fallback price: 0
+    // First check database for existing price
+    const { data: lastPrice } = await supabase
+      .from('prices')
+      .select('price, updated_at')
+      .eq('token', 'USDC')
+      .eq('currency', currency)
+      .single();
+
+    const now = new Date();
+    const fifteenSecondsAgo = new Date(now.getTime() - 15000);
+    
+    // If price exists and is less than 15 seconds old, return it
+    if (lastPrice && new Date(lastPrice.updated_at) > fifteenSecondsAgo) {
+      return NextResponse.json({ success: true, price: lastPrice.price });
+    }
+
+    // Price is stale or doesn't exist, fetch from CoinGecko
+    let price = lastPrice?.price || 0; // Use existing price as fallback
 
     try {
-      // Try to fetch from CoinGecko with shorter timeout
       const response = await fetch(
         `https://api.coingecko.com/api/v3/simple/price?ids=usd-coin&vs_currencies=${currency.toLowerCase()}`,
         {
-          signal: AbortSignal.timeout(5000), // 5 seconds
-          headers: {
-            'Accept': 'application/json',
-          }
+          signal: AbortSignal.timeout(5000),
+          headers: { 'Accept': 'application/json' }
         }
       );
 
@@ -27,51 +41,25 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (fetchError) {
-      console.warn('CoinGecko fetch failed, trying database fallback:', fetchError);
-
-      // Try to get last price from database
-      const { data: lastPrice } = await supabase
-        .from('prices')
-        .select('price')
-        .eq('token', 'USDC')
-        .eq('currency', currency)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (lastPrice?.price) {
-        price = lastPrice.price;
-        console.log('Using last price from database:', price);
-      }
+      console.warn('CoinGecko fetch failed, using existing price:', fetchError);
+      // Return existing price from database without updating
+      return NextResponse.json({ success: true, price });
     }
 
-    // Only insert if price changed from last entry
-    try {
-      const { data: lastPrice } = await supabase
-        .from('prices')
-        .select('price')
-        .eq('token', 'USDC')
-        .eq('currency', currency)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+    // Update database with new price only if fetch succeeded
+    const { error } = await supabase
+      .from('prices')
+      .upsert({
+        token: 'USDC',
+        currency: currency,
+        price: price,
+        updated_at: now.toISOString()
+      }, {
+        onConflict: 'token,currency'
+      });
 
-      // Insert only if price changed or no previous price exists
-      if (!lastPrice || Math.abs(lastPrice.price - price) > 0.0001) {
-        const { error } = await supabase
-          .from('prices')
-          .insert({
-            token: 'USDC',
-            currency: currency,
-            price: price,
-          });
-
-        if (error) {
-          console.warn('Failed to insert price into database:', error);
-        }
-      }
-    } catch (insertError) {
-      console.warn('Error checking/inserting price:', insertError);
+    if (error) {
+      console.warn('Failed to upsert price:', error);
     }
 
     return NextResponse.json({ success: true, price });
