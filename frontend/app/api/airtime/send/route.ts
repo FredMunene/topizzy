@@ -68,7 +68,30 @@ export async function POST(request: NextRequest) {
 
     if (order.status !== 'pending') {
       console.log('Order status is not pending:', order.status)
-      return NextResponse.json({ error: 'Order not pending' }, { status: 400 })
+      
+      if (order.status === 'refunded') {
+        return NextResponse.json({ 
+          error: 'Order already refunded', 
+          status: 'refunded',
+          message: 'This order was previously refunded. Please create a new order to try again.',
+          refundTxHash: order.refund_tx_hash
+        }, { status: 400 })
+      }
+      
+      if (order.status === 'fulfilled') {
+        return NextResponse.json({ 
+          error: 'Order already fulfilled', 
+          status: 'fulfilled',
+          message: 'Airtime has already been sent for this order.',
+          txHash: order.tx_hash
+        }, { status: 400 })
+      }
+      
+      return NextResponse.json({ 
+        error: 'Order not pending', 
+        status: order.status,
+        message: `Order status is ${order.status}. Only pending orders can be processed.`
+      }, { status: 400 })
     }
 
     // Verify blockchain transaction
@@ -117,8 +140,25 @@ export async function POST(request: NextRequest) {
       .eq('id', order.id)
 
 
-      // use order currency 
-    const currency = order.currency
+    // Use order currency or default to KES
+    const currency = order.currency || 'KES'
+    
+    console.log('Preparing airtime request...')
+    const airtimePayload = {
+      username: AFRICASTALKING_USERNAME,
+      recipients: [
+        {
+          phoneNumber: order.phone_number,
+          amount: `${currency} ${order.amount.toFixed(2)}`
+        }
+      ],
+      maxNumRetry: 3,
+      requestMetadata: {
+        orderRef: orderRef
+      }
+    }
+    
+    console.log('Sending airtime request:', airtimePayload)
 
     // Send airtime
     const response = await fetch(AFRICASTALKING_URL, {
@@ -128,26 +168,18 @@ export async function POST(request: NextRequest) {
         'apiKey': AFRICASTALKING_API_KEY,
         'Accept': 'application/json'
       },
-      body: JSON.stringify({
-        username: AFRICASTALKING_USERNAME,
-        recipients: [
-          {
-            phoneNumber: order.phone_number,
-            amount: `${currency} ${order.amount.toFixed(2)}`
-          }
-        ],
-        maxNumRetry: 3,
-        requestMetadata: {
-          orderRef: orderRef
-        }
-      })
+      body: JSON.stringify(airtimePayload)
     })
+    
+    console.log('AfricasTalking response status:', response.status)
 
     const result = await response.json()
+    console.log('AfricasTalking response:', result)
 
-    if (response.ok && result.SMSMessageData?.Recipients?.[0]?.status === 'Success') {
+    if (response.ok && result.responses?.[0]?.status === 'Sent') {
       // Success
-      const requestId = result.SMSMessageData.Recipients[0].requestId
+      const requestId = result.responses[0].requestId
+      console.log('Airtime request successful, requestId:', requestId)
 
       // Update order status
       await supabase
@@ -156,31 +188,50 @@ export async function POST(request: NextRequest) {
         .eq('id', order.id)
 
       // Insert airtime transaction
-      await supabase
+      console.log('Inserting airtime transaction with requestId:', requestId)
+      const { error: insertError } = await supabase
         .from('airtime_transactions')
         .insert({
           order_id: order.id,
           phone_number: order.phone_number,
           amount: order.amount,
+          currency: currency,
           provider_request_id: requestId,
           provider_status: 'Success'
         })
+        
+      if (insertError) {
+        console.error('Failed to insert airtime transaction:', insertError)
+      } else {
+        console.log('Airtime transaction inserted successfully')
+      }
 
       return NextResponse.json({ success: true, requestId })
     } else {
       // Failed - execute actual refund via smart contract
-      const errorMessage = result.SMSMessageData?.Recipients?.[0]?.message || 'Unknown error'
+      const errorMessage = result.responses?.[0]?.errorMessage || result.errorMessage || 'Unknown error'
+      const requestId = result.responses?.[0]?.requestId
+      console.log('Airtime request failed:', errorMessage, 'requestId:', requestId)
 
       // Insert airtime transaction record
-      await supabase
+      console.log('Inserting failed airtime transaction with requestId:', requestId)
+      const { error: insertError } = await supabase
         .from('airtime_transactions')
         .insert({
           order_id: order.id,
           phone_number: order.phone_number,
           amount: order.amount,
+          currency: currency,
+          provider_request_id: requestId,
           provider_status: 'Failed',
           error_message: errorMessage
         })
+        
+      if (insertError) {
+        console.error('Failed to insert failed airtime transaction:', insertError)
+      } else {
+        console.log('Failed airtime transaction inserted successfully')
+      }
 
       // Execute refund on blockchain
       try {
