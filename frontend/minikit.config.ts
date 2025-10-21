@@ -10,9 +10,9 @@ const ROOT_URL =
  */
 export const minikitConfig = {
   accountAssociation: {
-    header: "",
-    payload: "",
-    signature: "",
+    "header": "eyJmaWQiOjk4ODIxMCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDczMjFDQzIwNDI3YzVkYUY3YThBMTgwNDI1OWVDM0E3MkFkNzhiMzQifQ",
+    "payload": "eyJkb21haW4iOiJ0b3Bpenp5LnZlcmNlbC5hcHAifQ",
+    "signature": "CcoxzVzAJUdP6SmKcdlK9S8buRoAmcLEK3HriaGm3qFavlYaTHJYL5b4tVGn1GTduHl8I0p53WRahxi8GnWkJxs="
   },
   baseBuilder: {
     allowedAddresses: [],
@@ -37,3 +37,5 @@ export const minikitConfig = {
     ogImageUrl: `${ROOT_URL}/hero.png`,
   },
 } as const;
+
+
