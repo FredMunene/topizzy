@@ -159,7 +159,7 @@ return NextResponse.json({ error: 'Order not found' }, { status: 404 })
         .insert({
           order_id: order.id,
           phone_number: order.phone_number,
-          amount_kes: order.amount,
+          amount: order.amount,
           provider_status: 'Failed',
           error_message: errorMessage
         })
