@@ -70,16 +70,15 @@ export default function Home() {
   // Debounce amount input for price fetching
   const debouncedAmount = useDebounce(amountKes, 500);
 
-  // Fetch latest price with debounced amount
+  // Fetch latest price
   const { data: priceData, isLoading: isPriceLoading, error: priceError } = useQuery({
-    queryKey: ["price", selectedCountry.code, debouncedAmount],
+    queryKey: ["price", selectedCountry.code],
     queryFn: async () => {
       const response = await fetch(`/api/prices?currency=${currentCurrency}`);
       if (!response.ok) throw new Error('Failed to fetch price');
       return response.json();
     },
-    enabled: !!debouncedAmount && Number.parseFloat(debouncedAmount) > 0,
-    refetchInterval: 30000, // every 30s
+    refetchInterval: 15000, // every 15s
     retry: 3,
   });
 

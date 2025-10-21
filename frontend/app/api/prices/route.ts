@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const response = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=usd-coin&vs_currencies=${currency.toLowerCase()}`,
+        'https://api.coinbase.com/v2/exchange-rates?currency=USDC',
         {
           signal: AbortSignal.timeout(5000),
           headers: { 'Accept': 'application/json' }
@@ -36,12 +36,12 @@ export async function GET(request: NextRequest) {
 
       if (response.ok) {
         const data = await response.json();
-        if (data['usd-coin']?.[currency.toLowerCase()]) {
-          price = data['usd-coin'][currency.toLowerCase()];
+        if (data.data?.rates?.[currency]) {
+          price = parseFloat(parseFloat(data.data.rates[currency]).toFixed(2));
         }
       }
     } catch (fetchError) {
-      console.warn('CoinGecko fetch failed, using existing price:', fetchError);
+      console.warn('Coinbase fetch failed, using existing price:', fetchError);
       // Return existing price from database without updating
       return NextResponse.json({ success: true, price });
     }
