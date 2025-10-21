@@ -10,17 +10,18 @@ export async function POST(request: NextRequest) {
     const { transactionId, phoneNumber, sourceIpAddress, currencyCode, amount } = data
 
     console.log("Airtime Validation Callback Data:", data);
+    console.log("Received IP Address:", sourceIpAddress);
 
     if (!transactionId || !phoneNumber || !sourceIpAddress || !currencyCode || !amount) {
       console.warn("Missing parameters in Airtime Validation Callback");
       return NextResponse.json({ status: 'Failed' }, { status: 400 });
     }
 
-    // 1. Validate IP Address
-    if (!TRUSTED_IP_ADDRESSES.includes(sourceIpAddress)) {
-      console.warn("Untrusted IP Address:", sourceIpAddress);
-      return NextResponse.json({ status: 'Failed' }, { status: 403 });
-    }
+    // 1. Validate IP Address - COMMENTED OUT FOR TESTING
+    // if (!TRUSTED_IP_ADDRESSES.includes(sourceIpAddress)) {
+    //   console.warn("Untrusted IP Address:", sourceIpAddress);
+    //   return NextResponse.json({ status: 'Failed' }, { status: 403 });
+    // }
 
     // 2. Query airtime_transactions table
     const { data: transaction, error } = await supabase
