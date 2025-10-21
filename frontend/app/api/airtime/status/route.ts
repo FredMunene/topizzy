@@ -2,11 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
+  console.log('=== AIRTIME STATUS API START ===')
   try {
-    const data = await request.json()
-    // Example data: { phoneNumber, description, status, requestId, discount, value }
-
-    const { requestId, status } = data
+    // AfricasTalking sends form-encoded data, not JSON
+    const formData = await request.formData()
+    
+    // Extract form fields
+    const requestId = formData.get('requestId') as string
+    const status = formData.get('status') as string
+    const phoneNumber = formData.get('phoneNumber') as string
+    const value = formData.get('value') as string
+    const description = formData.get('description') as string
+    
+    console.log('Form data received:', {
+      requestId,
+      status,
+      phoneNumber,
+      value,
+      description
+    })
 
     // Find airtime transaction
     const { data: transaction, error: txError } = await supabase
@@ -47,7 +61,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    console.error('=== AIRTIME STATUS API ERROR ===')
     console.error('Error handling airtime status:', error)
-    return NextResponse.json({ error: 'Failed to handle status' }, { status: 500 })
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    return NextResponse.json({ 
+      error: 'Failed to handle status',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 })
+  } finally {
+    console.log('=== AIRTIME STATUS API END ===')
   }
 }

@@ -27,30 +27,48 @@ const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRES
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY as `0x${string}`
 
 export async function POST(request: NextRequest) {
+  console.log('=== AIRTIME SEND API START ===')
   try {
-    const { orderRef, txHash } = await request.json()
+    const body = await request.json()
+    console.log('Request body:', body)
+    
+    const { orderRef, txHash } = body
 
     if (!orderRef) {
+      console.log('ERROR: Missing orderRef')
       return NextResponse.json({ error: 'Missing orderRef' }, { status: 400 })
     }
 
     if (!txHash) {
+      console.log('ERROR: Missing transaction hash')
       return NextResponse.json({ error: 'Missing transaction hash' }, { status: 400 })
     }
+    
+    console.log('Processing order:', orderRef, 'with txHash:', txHash)
 
     // Get order
+    console.log('Fetching order from database...')
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('*')
       .eq('order_ref', orderRef)
       .single()
 
-    if (orderError || !order) {
-return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    if (orderError) {
+      console.log('Database error fetching order:', orderError)
+      return NextResponse.json({ error: 'Order not found', details: orderError.message }, { status: 404 })
     }
+    
+    if (!order) {
+      console.log('Order not found in database')
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+    
+    console.log('Order found:', order)
 
     if (order.status !== 'pending') {
- return NextResponse.json({ error: 'Order not pending' }, { status: 400 })
+      console.log('Order status is not pending:', order.status)
+      return NextResponse.json({ error: 'Order not pending' }, { status: 400 })
     }
 
     // Verify blockchain transaction
@@ -232,7 +250,15 @@ return NextResponse.json({ error: 'Order not found' }, { status: 404 })
       }
     }
   } catch (error) {
-    console.error('Error sending airtime:', error)
-    return NextResponse.json({ error: 'Failed to send airtime' }, { status: 500 })
+    console.error('=== AIRTIME SEND API ERROR ===')
+    console.error('Error details:', error)
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    return NextResponse.json({ 
+      error: 'Failed to send airtime', 
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    }, { status: 500 })
+  } finally {
+    console.log('=== AIRTIME SEND API END ===')
   }
 }
