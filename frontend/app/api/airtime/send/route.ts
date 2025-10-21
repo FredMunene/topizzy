@@ -98,8 +98,9 @@ return NextResponse.json({ error: 'Order not found' }, { status: 404 })
       .update({ tx_hash: txHash })
       .eq('id', order.id)
 
-    // Use order currency for airtime request
-    const currency = order.currency || 'KES'
+
+      // use order currency 
+    const currency = order.currency
 
     // Send airtime
     const response = await fetch(AFRICASTALKING_URL, {
@@ -143,7 +144,6 @@ return NextResponse.json({ error: 'Order not found' }, { status: 404 })
           order_id: order.id,
           phone_number: order.phone_number,
           amount: order.amount,
-          currency: currency,
           provider_request_id: requestId,
           provider_status: 'Success'
         })
@@ -159,8 +159,7 @@ return NextResponse.json({ error: 'Order not found' }, { status: 404 })
         .insert({
           order_id: order.id,
           phone_number: order.phone_number,
-          amount: order.amount,
-          currency: currency,
+          amount_kes: order.amount,
           provider_status: 'Failed',
           error_message: errorMessage
         })
