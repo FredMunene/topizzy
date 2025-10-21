@@ -1,8 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase';
 
-// const TRUSTED_IP_ADDRESSES = ["127.0.0.1"]; // Replace with actual Africa's Talking IPs
-
+const TRUSTED_IP_ADDRESSES = ["196.250.215.198"]; 
+                    
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
@@ -18,10 +18,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 1. Validate IP Address - COMMENTED OUT FOR TESTING
-    // if (!TRUSTED_IP_ADDRESSES.includes(sourceIpAddress)) {
-    //   console.warn("Untrusted IP Address:", sourceIpAddress);
-    //   return NextResponse.json({ status: 'Failed' }, { status: 403 });
-    // }
+    if (!TRUSTED_IP_ADDRESSES.includes(sourceIpAddress)) {
+      console.warn("Untrusted IP Address:", sourceIpAddress);
+      return NextResponse.json({ status: 'Failed' }, { status: 403 });
+    }
 
     // 2. Query airtime_transactions table
     const { data: transaction, error } = await supabase
