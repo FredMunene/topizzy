@@ -9,23 +9,6 @@ import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 import styles from "./page.module.css";
 
-// Custom hook for debouncing
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
 const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as `0x${string}` // Base Sepolia USDC
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 
@@ -67,8 +50,7 @@ export default function Home() {
     }
   }, [setMiniAppReady, isMiniAppReady]);
 
-  // Debounce amount input for price fetching
-  const debouncedAmount = useDebounce(amountKes, 500);
+  
 
   // Fetch latest price
   const { data: priceData, isLoading: isPriceLoading, error: priceError } = useQuery({
