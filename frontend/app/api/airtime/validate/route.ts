@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase';
 
-const TRUSTED_IP_ADDRESSES = ["127.0.0.1"]; // Replace with actual Africa's Talking IPs
+// const TRUSTED_IP_ADDRESSES = ["127.0.0.1"]; // Replace with actual Africa's Talking IPs
 
 export async function POST(request: NextRequest) {
   try {
