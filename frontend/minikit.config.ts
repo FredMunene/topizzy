@@ -16,6 +16,7 @@ export const minikitConfig = {
   },
   baseBuilder: {
     allowedAddresses: [],
+    "ownerAddress": "0x1Dc052F929863c6702de70166f05a8517157B9Ac"
   },
   miniapp: {
     version: "1",
