@@ -26,9 +26,9 @@ export default function Home() {
   const [amountKes, setAmountKes] = useState("");
   const [validationError, setValidationError] = useState<string>("");
   const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number } | null>(null);
+  const [shouldPoll, setShouldPoll] = useState(true);
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
-  const orderStatusRef = useRef<string | null>(null);
 
   // Get USDC balance
   const { data: usdcBalance } = useBalance({
@@ -39,11 +39,22 @@ export default function Home() {
   const fullPhoneNumber = selectedCountry.prefix + phoneNumber;
   const currencyMap: { [key: string]: string } = {
     "KE": "KES",
-    "TZ": "TZS",
+    "TZ": "TZS", 
     "UG": "UGX",
     "RW": "RWF",
   };
-  const currentCurrency = currencyMap[selectedCountry.code] || "KES";
+  
+  // Get currency from phone number prefix, not just selected country
+  const getPhoneCountryCode = (phoneWithPrefix: string) => {
+    if (phoneWithPrefix.startsWith('+254')) return 'KE';
+    if (phoneWithPrefix.startsWith('+255')) return 'TZ';
+    if (phoneWithPrefix.startsWith('+256')) return 'UG';
+    if (phoneWithPrefix.startsWith('+250')) return 'RW';
+    return selectedCountry.code;
+  };
+  
+  const phoneCountryCode = getPhoneCountryCode(fullPhoneNumber);
+  const currentCurrency = currencyMap[phoneCountryCode] || "KES";
 
   useEffect(() => {
     if (!isMiniAppReady) {
@@ -219,12 +230,25 @@ export default function Home() {
       const response = await fetch(`/api/orders/${order.orderRef}`);
       if (!response.ok) throw new Error('Failed to fetch order status');
       const data = await response.json();
+      
+      // Stop polling if order reaches final state
+      if (data.status === 'fulfilled' || data.status === 'refunded') {
+        setShouldPoll(false);
+      }
+      
       return data;
     },
-    enabled: !!order?.orderRef,
-    refetchInterval: 2000, // Poll every 2 seconds
+    enabled: !!order?.orderRef && shouldPoll,
+    refetchInterval: shouldPoll ? 2000 : false,
     refetchIntervalInBackground: true,
   });
+
+  // Reset polling when order changes
+  useEffect(() => {
+    if (order) {
+      setShouldPoll(true);
+    }
+  }, [order]);
 
   const handleContinue = async () => {
     if (!address) {
@@ -457,8 +481,8 @@ export default function Home() {
                   'Order Refunded'
                 ) : orderStatus?.status === 'fulfilled' ? (
                   'Order Completed'
-                ) : payAndSendMutation.isPending ? (
-                  'Processing Payment...'
+                // ) : payAndSendMutation.isPending ? (
+                //   'Processing Payment...'
                 ) : !address ? (
                   'Connect Wallet to Pay'
                 ) : (
