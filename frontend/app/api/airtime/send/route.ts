@@ -172,7 +172,17 @@ export async function POST(request: NextRequest) {
     
     console.log('AfricasTalking response status:', response.status)
 
-    const result = await response.json()
+    let result
+    try {
+      result = await response.json()
+    } catch (jsonError) {
+      const textResponse = await response.text()
+      console.error('AfricasTalking returned non-JSON response:', textResponse)
+      return NextResponse.json({ 
+        error: 'Airtime service returned invalid response', 
+        details: `Status: ${response.status}, Response: ${textResponse.substring(0, 200)}...`
+      }, { status: 500 })
+    }
     console.log('AfricasTalking response:', result)
 
     if (response.ok && result.responses?.[0]?.status === 'Sent') {
