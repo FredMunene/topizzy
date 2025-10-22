@@ -313,13 +313,6 @@ export default function Home() {
               <div className={styles.formGroup}>
                 <label className={styles.label}>Phone Number</label>
                 <div className={styles.phoneInputWrapper}>
-                  <input
-                    type="tel"
-                    placeholder="743913802"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
-                    className={styles.phoneInput}
-                  />
                   <button 
                     className={styles.countryButton}
                     onClick={() => {
@@ -330,6 +323,13 @@ export default function Home() {
                   >
                     {selectedCountry.prefix}
                   </button>
+                  <input
+                    type="tel"
+                    placeholder="743913802"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
+                    className={styles.phoneInput}
+                  />
                 </div>
                 <div className={styles.helperText}>
                   <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
