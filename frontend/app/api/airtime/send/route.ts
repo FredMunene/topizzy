@@ -27,8 +27,6 @@ const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRES
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY as `0x${string}`
 
 export async function POST(request: NextRequest) {
-  console.log('=== AIRTIME SEND API START ===')
-  console.log('TREASURY_PRIVATE_KEY configured:', !!TREASURY_PRIVATE_KEY)
   try {
     const body = await request.json()
     console.log('Request body:', body)
@@ -250,10 +248,6 @@ export async function POST(request: NextRequest) {
         // Refund only airtime cost, keep service fee
         const refundAmount = order.amount_usdc - (order.service_fee_usdc || 0)
         const amountWei = parseUnits(refundAmount.toString(), 6) // USDC has 6 decimals
-        
-        console.log('REFUND DEBUG: Total paid:', order.amount_usdc, 'Service fee:', order.service_fee_usdc, 'Refund amount:', refundAmount)
-
-        console.log('REFUND DEBUG: Executing refund transaction...')
         const refundTxHash = await walletClient.writeContract({
           address: AIRTIME_CONTRACT_ADDRESS,
           abi: AIRTIME_ABI,
@@ -264,18 +258,14 @@ export async function POST(request: NextRequest) {
             amountWei
           ]
         })
-        console.log('REFUND DEBUG: Refund tx hash:', refundTxHash)
 
         // Wait for refund transaction
-        console.log('REFUND DEBUG: Waiting for refund transaction confirmation...')
         await publicClient.waitForTransactionReceipt({
           hash: refundTxHash,
           confirmations: 1
         })
-        console.log('REFUND DEBUG: Refund transaction confirmed')
 
         // Update order with refund status and refund tx hash
-        console.log('REFUND DEBUG: Updating order with refund tx hash:', refundTxHash)
         const { error: updateError } = await supabase
           .from('orders')
           .update({ 
@@ -285,9 +275,7 @@ export async function POST(request: NextRequest) {
           .eq('id', order.id)
         
         if (updateError) {
-          console.error('REFUND DEBUG: Failed to update order with refund tx hash:', updateError)
-        } else {
-          console.log('REFUND DEBUG: Order updated successfully with refund tx hash')
+          console.error('Failed to update order with refund tx hash:', updateError)
         }
 
         return NextResponse.json({ 
@@ -296,7 +284,7 @@ export async function POST(request: NextRequest) {
           refundTxHash 
         }, { status: 500 })
       } catch (refundError) {
-        console.error('REFUND DEBUG: Refund execution failed:', refundError)
+        console.error('Refund execution failed:', refundError)
         // Update order to refunded status (but refund failed)
         await supabase
           .from('orders')
@@ -311,15 +299,10 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error) {
-    console.error('=== AIRTIME SEND API ERROR ===')
-    console.error('Error details:', error)
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('Error in airtime send API:', error)
     return NextResponse.json({ 
       error: 'Failed to send airtime', 
-      details: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
-  } finally {
-    console.log('=== AIRTIME SEND API END ===')
   }
 }

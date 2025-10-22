@@ -32,7 +32,7 @@ export default function Home() {
 
   // Switch to Base Mainnet
   const switchToBaseMainnet = async () => {
-    const ethereum = (window as any).ethereum;
+    const ethereum = (window as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
     if (!ethereum) return;
     
     try {
@@ -40,9 +40,9 @@ export default function Home() {
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: '0x2105' }], // 8453 in hex
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If network doesn't exist, add it
-      if (error.code === 4902) {
+      if ((error as { code?: number }).code === 4902) {
         try {
           await ethereum.request({
             method: 'wallet_addEthereumChain',
@@ -58,7 +58,7 @@ export default function Home() {
               blockExplorerUrls: ['https://basescan.org'],
             }],
           });
-        } catch (addError) {
+        } catch (addError: unknown) {
           console.error('Failed to add Base Mainnet:', addError);
         }
       } else {
@@ -68,7 +68,7 @@ export default function Home() {
   };
 
   // Get USDC balance
-  const { data: usdcBalance, error: balanceError, isLoading: balanceLoading } = useBalance({
+  const { data: usdcBalance } = useBalance({
     address: address,
     token: USDC_ADDRESS,
   });
