@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createPublicClient, createWalletClient, http, parseUnits } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { base } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 
@@ -118,12 +118,12 @@ export async function POST(request: NextRequest) {
         const account = privateKeyToAccount(privateKey as `0x${string}`)
         const walletClient = createWalletClient({
           account,
-          chain: baseSepolia,
+          chain: base,
           transport: http()
         })
 
         const publicClient = createPublicClient({
-          chain: baseSepolia,
+          chain: base,
           transport: http()
         })
 

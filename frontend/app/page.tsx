@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback} from "react";
 import { Wallet } from "@coinbase/onchainkit/wallet";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 import styles from "./page.module.css";
 
-const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as `0x${string}` // Base Sepolia USDC
+const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as `0x${string}` // Base Mainnet USDC
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 
 const countries = [
@@ -199,31 +199,33 @@ export default function Home() {
         });
         
         if (!airtimeResponse.ok) {
-          const errorText = await airtimeResponse.text();
+          // const errorText = await airtimeResponse.text();
           throw new Error(`Airtime service error: ${airtimeResponse.status}`);
         }
         
         const result = await airtimeResponse.json();
         return result;
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Transform technical errors into user-friendly messages
-        if (error.message?.includes('User rejected') || error.message?.includes('user rejected')) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
           throw new Error('Transaction cancelled. Please try again when ready to complete the payment.');
         }
-        if (error.message?.includes('insufficient funds')) {
+        if (errorMessage.includes('insufficient funds')) {
           throw new Error('Insufficient USDC balance. Please add more USDC to your wallet.');
         }
-        if (error.message?.includes('network')) {
+        if (errorMessage.includes('network')) {
           throw new Error('Network error. Please check your connection and try again.');
         }
         // Re-throw the original error if it's already user-friendly
-        throw error;
+        throw error instanceof Error ? error : new Error(String(error));
       }
     },
   });
 
   // Poll order status
-  const { data: orderStatus }: { data: any } = useQuery({
+  const { data: orderStatus } = useQuery({
     queryKey: ['orderStatus', order?.orderRef],
     queryFn: async () => {
       if (!order?.orderRef) return null;
@@ -313,13 +315,6 @@ export default function Home() {
               <div className={styles.formGroup}>
                 <label className={styles.label}>Phone Number</label>
                 <div className={styles.phoneInputWrapper}>
-                  <input
-                    type="tel"
-                    placeholder="743913802"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
-                    className={styles.phoneInput}
-                  />
                   <button 
                     className={styles.countryButton}
                     onClick={() => {
@@ -330,6 +325,13 @@ export default function Home() {
                   >
                     {selectedCountry.prefix}
                   </button>
+                  <input
+                    type="tel"
+                    placeholder="743913802"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
+                    className={styles.phoneInput}
+                  />
                 </div>
                 <div className={styles.helperText}>
                   <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
