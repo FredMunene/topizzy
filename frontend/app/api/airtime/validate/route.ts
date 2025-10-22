@@ -12,19 +12,19 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 })
 
-// Hardcoded trusted IP addresses
-const HARDCODED_TRUSTED_IPS = [
-  "196.250.215.198",
-  "98.92.250.163"
-];
+// // Hardcoded trusted IP addresses
+// const HARDCODED_TRUSTED_IPS = [
+//   "196.250.215.198",
+//   "98.92.250.163"
+// ];
 
-// Get additional trusted IPs from environment variable (comma-separated)
-const ENV_TRUSTED_IPS = process.env.AFRICASTALKING_TRUSTED_IPS 
-  ? process.env.AFRICASTALKING_TRUSTED_IPS.split(',').map(ip => ip.trim())
-  : [];
+// // Get additional trusted IPs from environment variable (comma-separated)
+// const ENV_TRUSTED_IPS = process.env.AFRICASTALKING_TRUSTED_IPS 
+//   ? process.env.AFRICASTALKING_TRUSTED_IPS.split(',').map(ip => ip.trim())
+//   : [];
 
-// Combine hardcoded and environment IPs
-const TRUSTED_IP_ADDRESSES = [...HARDCODED_TRUSTED_IPS, ...ENV_TRUSTED_IPS];
+// // Combine hardcoded and environment IPs
+// const TRUSTED_IP_ADDRESSES = [...HARDCODED_TRUSTED_IPS, ...ENV_TRUSTED_IPS];
                     
 export async function POST(request: NextRequest) {
   try {
@@ -40,11 +40,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'Failed' }, { status: 400 });
     }
 
-    // 1. Validate IP Address - COMMENTED OUT FOR TESTING
-    if (!TRUSTED_IP_ADDRESSES.includes(sourceIpAddress)) {
-      console.warn("Untrusted IP Address:", sourceIpAddress);
-      return NextResponse.json({ status: 'Failed' }, { status: 403 });
-    }
+    // // 1. Validate IP Address - COMMENTED OUT FOR TESTING
+    // if (!TRUSTED_IP_ADDRESSES.includes(sourceIpAddress)) {
+    //   console.warn("Untrusted IP Address:", sourceIpAddress);
+    //   return NextResponse.json({ status: 'Failed' }, { status: 403 });
+    // }
 
     // 2. Query orders table for pending order
     const { data: order, error } = await supabase
