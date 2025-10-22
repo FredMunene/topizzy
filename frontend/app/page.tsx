@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback} from "react";
 import { Wallet } from "@coinbase/onchainkit/wallet";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -199,31 +199,33 @@ export default function Home() {
         });
         
         if (!airtimeResponse.ok) {
-          const errorText = await airtimeResponse.text();
+          // const errorText = await airtimeResponse.text();
           throw new Error(`Airtime service error: ${airtimeResponse.status}`);
         }
         
         const result = await airtimeResponse.json();
         return result;
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Transform technical errors into user-friendly messages
-        if (error.message?.includes('User rejected') || error.message?.includes('user rejected')) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
           throw new Error('Transaction cancelled. Please try again when ready to complete the payment.');
         }
-        if (error.message?.includes('insufficient funds')) {
+        if (errorMessage.includes('insufficient funds')) {
           throw new Error('Insufficient USDC balance. Please add more USDC to your wallet.');
         }
-        if (error.message?.includes('network')) {
+        if (errorMessage.includes('network')) {
           throw new Error('Network error. Please check your connection and try again.');
         }
         // Re-throw the original error if it's already user-friendly
-        throw error;
+        throw error instanceof Error ? error : new Error(String(error));
       }
     },
   });
 
   // Poll order status
-  const { data: orderStatus }: { data: any } = useQuery({
+  const { data: orderStatus } = useQuery({
     queryKey: ['orderStatus', order?.orderRef],
     queryFn: async () => {
       if (!order?.orderRef) return null;
