@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_SUPABASE_ANON_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_FEE = parseFloat(process.env.SERVICE_FEE || '0.05'); // Default 0.05 USDC
 
 // Create a Supabase client with the service key
 const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {
@@ -74,7 +75,9 @@ export async function POST(request: NextRequest) {
     }
 
     const price = priceData.price;
-    const amountUsdc = amountKes / price;
+    const airtimeUsdc = amountKes / price;
+    const serviceFeeUsdc = SERVICE_FEE;
+    const totalUsdc = airtimeUsdc + serviceFeeUsdc;
 
     // Generate order_ref
     const orderRef = nanoid(8);
@@ -87,10 +90,11 @@ export async function POST(request: NextRequest) {
         phone_number: phoneNumber,
         product_type: 'airtime',
         amount: amountKes,
-        amount_usdc: amountUsdc,
+        amount_usdc: totalUsdc,
+        service_fee_usdc: serviceFeeUsdc,
         status: 'pending',
-        wallet_address: walletAddress, // Store wallet address
-        currency: currency // Store currency
+        wallet_address: walletAddress,
+        currency: currency
       })
       .select()
       .single();
@@ -106,7 +110,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       orderRef,
       amountKes,
-      amountUsdc,
+      amountUsdc: totalUsdc,
+      airtimeUsdc,
+      serviceFeeUsdc,
       price,
       orderId: orderData.id,
       currency

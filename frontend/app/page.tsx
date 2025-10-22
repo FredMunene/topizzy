@@ -25,7 +25,7 @@ export default function Home() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amountKes, setAmountKes] = useState("");
   const [validationError, setValidationError] = useState<string>("");
-  const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number } | null>(null);
+  const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number; airtimeUsdc?: number; serviceFeeUsdc?: number } | null>(null);
   const [shouldPoll, setShouldPoll] = useState(true);
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -463,6 +463,14 @@ export default function Home() {
                   <span className={styles.summaryValue}>{order.amountKes}</span>
                 </div>
                 <div className={styles.summaryRow}>
+                  <span>Airtime cost:</span>
+                  <span className={styles.summaryValue}>{order.airtimeUsdc ? Number(order.airtimeUsdc).toFixed(2) : '0.00'} USDC</span>
+                </div>
+                <div className={styles.summaryRow}>
+                  <span>Service fee:</span>
+                  <span className={styles.summaryValue}>{order.serviceFeeUsdc ? Number(order.serviceFeeUsdc).toFixed(2) : '0.00'} USDC</span>
+                </div>
+                <div className={styles.summaryRow}>
                   <span>You will pay:</span>
                   <span className={styles.summaryValueLarge}>{Number(order.amountUsdc).toFixed(2)} USDC</span>
                 </div>
@@ -493,12 +501,7 @@ export default function Home() {
               {/* Order Status Display */}
               {orderStatus && (
                 <div className={styles.statusDisplay}>
-                  {orderStatus.status === 'pending' && orderStatus.tx_hash && (
-                    <div className={styles.pendingMessage}>
-                      <div className={styles.spinner}></div>
-                      Processing airtime delivery...
-                    </div>
-                  )}
+                  
                   
                   {orderStatus.status === 'fulfilled' && (
                     <div className={styles.successMessage}>
