@@ -73,10 +73,13 @@
   font-size: 1rem;
   transition: all 0.2s;
   outline: none;
-  background-color: #ffffff;
-  opacity: 1;
-  -webkit-appearance: none;
-  -webkit-opacity: 1;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #000000 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
 }
 
 .phoneInput:focus {
@@ -86,7 +89,8 @@
 
 .countryButton {
   padding: 0.75rem 1rem;
-  background: #ffffff;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
   border: 1px solid #d1d1d1;
   border-radius: 8px;
   font-size: 0.875rem;
@@ -94,9 +98,9 @@
   cursor: pointer;
   transition: all 0.2s;
   min-width: 70px;
-  opacity: 1;
-  -webkit-appearance: none;
-  -webkit-opacity: 1;
+  color: #000000 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #000000 !important;
 }
 
 .countryButton:hover {
@@ -133,10 +137,13 @@
   font-size: 1rem;
   transition: all 0.2s;
   outline: none;
-  background-color: #ffffff;
-  opacity: 1;
-  -webkit-appearance: none;
-  -webkit-opacity: 1;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #000000 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
 }
 
 .amountInput:focus {
