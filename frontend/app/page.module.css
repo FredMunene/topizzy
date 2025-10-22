@@ -73,6 +73,10 @@
   font-size: 1rem;
   transition: all 0.2s;
   outline: none;
+  background-color: #ffffff;
+  opacity: 1;
+  -webkit-appearance: none;
+  -webkit-opacity: 1;
 }
 
 .phoneInput:focus {
@@ -82,7 +86,7 @@
 
 .countryButton {
   padding: 0.75rem 1rem;
-  background: white;
+  background: #ffffff;
   border: 1px solid #d1d1d1;
   border-radius: 8px;
   font-size: 0.875rem;
@@ -90,6 +94,9 @@
   cursor: pointer;
   transition: all 0.2s;
   min-width: 70px;
+  opacity: 1;
+  -webkit-appearance: none;
+  -webkit-opacity: 1;
 }
 
 .countryButton:hover {
@@ -126,6 +133,10 @@
   font-size: 1rem;
   transition: all 0.2s;
   outline: none;
+  background-color: #ffffff;
+  opacity: 1;
+  -webkit-appearance: none;
+  -webkit-opacity: 1;
 }
 
 .amountInput:focus {
