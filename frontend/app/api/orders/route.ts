@@ -25,8 +25,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine country code from phone number
-    const countryCode = phoneNumber.substring(0, 3); // e.g., "254" for Kenya
+    // Determine country code from phone number (remove + prefix)
+    const phoneWithoutPlus = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber;
+    const countryCode = phoneWithoutPlus.substring(0, 3); // e.g., "254" for Kenya
 
     // Currency mapping
     const currencyMap: { [key: string]: string } = {

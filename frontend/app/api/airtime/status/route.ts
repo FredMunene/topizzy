@@ -113,7 +113,9 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Manual refund required' }, { status: 500 })
         }
 
-        const account = privateKeyToAccount(TREASURY_PRIVATE_KEY)
+        // Ensure private key has 0x prefix
+        const privateKey = TREASURY_PRIVATE_KEY.startsWith('0x') ? TREASURY_PRIVATE_KEY : `0x${TREASURY_PRIVATE_KEY}`
+        const account = privateKeyToAccount(privateKey as `0x${string}`)
         const walletClient = createWalletClient({
           account,
           chain: baseSepolia,
