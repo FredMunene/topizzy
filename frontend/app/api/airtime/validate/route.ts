@@ -12,7 +12,19 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 })
 
-const TRUSTED_IP_ADDRESSES = ["196.250.215.198"]; 
+// Hardcoded trusted IP addresses
+const HARDCODED_TRUSTED_IPS = [
+  "196.250.215.198",
+  "98.92.250.163"
+];
+
+// Get additional trusted IPs from environment variable (comma-separated)
+const ENV_TRUSTED_IPS = process.env.AFRICASTALKING_TRUSTED_IPS 
+  ? process.env.AFRICASTALKING_TRUSTED_IPS.split(',').map(ip => ip.trim())
+  : [];
+
+// Combine hardcoded and environment IPs
+const TRUSTED_IP_ADDRESSES = [...HARDCODED_TRUSTED_IPS, ...ENV_TRUSTED_IPS];
                     
 export async function POST(request: NextRequest) {
   try {
