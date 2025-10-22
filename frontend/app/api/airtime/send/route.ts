@@ -175,9 +175,18 @@ export async function POST(request: NextRequest) {
     let result
     try {
       result = await response.json()
-    } catch (jsonError) {
+    } catch {
       const textResponse = await response.text()
       console.error('AfricasTalking returned non-JSON response:', textResponse)
+      
+      // Handle authentication errors specifically
+      if (response.status === 401) {
+        return NextResponse.json({ 
+          error: 'Authentication failed with airtime provider', 
+          details: textResponse.substring(0, 200)
+        }, { status: 500 })
+      }
+      
       return NextResponse.json({ 
         error: 'Airtime service returned invalid response', 
         details: `Status: ${response.status}, Response: ${textResponse.substring(0, 200)}...`
