@@ -1,5 +1,16 @@
 import { NextResponse, NextRequest } from 'next/server'
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+// Use service key to bypass RLS for server-side operations
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+})
 
 const TRUSTED_IP_ADDRESSES = ["196.250.215.198"]; 
                     
@@ -23,24 +34,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'Failed' }, { status: 403 });
     }
 
-    // 2. Query airtime_transactions table
-    const { data: transaction, error } = await supabase
-      .from('airtime_transactions')
-      .select('*, orders(*)')
-      .eq('provider_request_id', transactionId)
+    // 2. Query orders table for pending order
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('phone_number', phoneNumber)
+      .eq('amount', Number(amount))
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    if (error || !transaction) {
-      console.error("Transaction not found:", transactionId, error);
+    if (error || !order) {
+      console.error("Pending order not found for validation:", { phoneNumber, amount, error });
       return NextResponse.json({ status: 'Failed' }, { status: 404 });
     }
 
-    // 3. Verify data
-    if (
-      phoneNumber !== transaction.phone_number ||
-      Number(amount) !== transaction.amount
-    ) {
-      console.warn("Data mismatch in validation callback");
+    console.log("Order found for validation:", order);
+
+    // 3. Verify currency matches
+    if (order.currency !== currencyCode) {
+      console.warn("Currency mismatch in validation callback:", { expected: order.currency, received: currencyCode });
       return NextResponse.json({ status: 'Failed' }, { status: 400 });
     }
 

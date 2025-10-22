@@ -1,5 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+import { createPublicClient, createWalletClient, http, parseUnits } from 'viem'
+import { baseSepolia } from 'viem/chains'
+import { privateKeyToAccount } from 'viem/accounts'
+import { AIRTIME_ABI } from '@/lib/airtime-abi'
+
+const supabaseUrl = process.env.NEXT_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
+const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY as `0x${string}`
+
+// Use service key to bypass RLS for server-side operations
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+})
 
 export async function POST(request: NextRequest) {
   console.log('=== AIRTIME STATUS API START ===')
@@ -22,6 +39,16 @@ export async function POST(request: NextRequest) {
       description
     })
 
+    // Debug: Check all transactions first
+    const { data: allTransactions } = await supabase
+      .from('airtime_transactions')
+      .select('provider_request_id')
+      .limit(10)
+    
+    console.log('All requestIds in database:', allTransactions?.map(t => t.provider_request_id))
+    console.log('Looking for requestId:', JSON.stringify(requestId))
+    console.log('RequestId length:', requestId.length)
+    
     // Find airtime transaction
     const { data: transaction, error: txError } = await supabase
       .from('airtime_transactions')
@@ -30,12 +57,24 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (txError || !transaction) {
-      console.error('Transaction not found for requestId:', requestId)
+      console.error('Transaction not found for requestId:', requestId, txError)
+      
+      // Try case-insensitive search
+      const { data: caseInsensitive } = await supabase
+        .from('airtime_transactions')
+        .select('provider_request_id')
+        .ilike('provider_request_id', requestId)
+      
+      console.log('Case-insensitive search results:', caseInsensitive)
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
     }
 
-    // Update transaction
-    await supabase
+    console.log('Found transaction:', transaction)
+
+
+    // Update transaction status
+    console.log('Updating transaction status from', transaction.provider_status, 'to', status)
+    const { error: updateError } = await supabase
       .from('airtime_transactions')
       .update({
         provider_status: status,
@@ -43,21 +82,86 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', transaction.id)
 
-    // Update order status
-    let orderStatus = 'pending'
-    if (status === 'Success') {
-      orderStatus = 'fulfilled'
-    } else if (status === 'Failed') {
-      orderStatus = 'refunded'
+    if (updateError) {
+      console.error('Failed to update transaction:', updateError)
     }
 
-    await supabase
-      .from('orders')
-      .update({
-        status: orderStatus,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', transaction.order_id)
+    // Update order status based on final delivery status
+    if (status === 'Success') {
+      console.log('Delivery successful - updating order to fulfilled')
+      const { error: orderUpdateError } = await supabase
+        .from('orders')
+        .update({
+          status: 'fulfilled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', transaction.order_id)
+
+      if (orderUpdateError) {
+        console.error('Failed to update order to fulfilled:', orderUpdateError)
+      }
+    } else if (status === 'Failed') {
+      console.log('Delivery failed - initiating refund')
+      
+      try {
+        if (!TREASURY_PRIVATE_KEY) {
+          console.error('Treasury private key not configured')
+          await supabase
+            .from('orders')
+            .update({ status: 'refunded' })
+            .eq('id', transaction.order_id)
+          return NextResponse.json({ error: 'Manual refund required' }, { status: 500 })
+        }
+
+        const account = privateKeyToAccount(TREASURY_PRIVATE_KEY)
+        const walletClient = createWalletClient({
+          account,
+          chain: baseSepolia,
+          transport: http()
+        })
+
+        const publicClient = createPublicClient({
+          chain: baseSepolia,
+          transport: http()
+        })
+
+        const order = transaction.orders
+        const amountWei = parseUnits(order.amount_usdc.toString(), 6)
+
+        const refundTxHash = await walletClient.writeContract({
+          address: AIRTIME_CONTRACT_ADDRESS,
+          abi: AIRTIME_ABI,
+          functionName: 'refund',
+          args: [
+            order.order_ref,
+            order.wallet_address as `0x${string}`,
+            amountWei
+          ]
+        })
+
+        await publicClient.waitForTransactionReceipt({
+          hash: refundTxHash,
+          confirmations: 1
+        })
+
+        await supabase
+          .from('orders')
+          .update({ 
+            status: 'refunded',
+            refund_tx_hash: refundTxHash,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', transaction.order_id)
+
+        console.log('Refund executed successfully:', refundTxHash)
+      } catch (refundError) {
+        console.error('Refund execution failed:', refundError)
+        await supabase
+          .from('orders')
+          .update({ status: 'refunded' })
+          .eq('id', transaction.order_id)
+      }
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

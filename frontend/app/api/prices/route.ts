@@ -1,6 +1,9 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+// In-memory cache to prevent concurrent API calls
+const pendingRequests = new Map<string, Promise<number>>();
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const currency = searchParams.get('currency') || 'KES';
@@ -22,47 +25,60 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, price: lastPrice.price });
     }
 
-    // Price is stale or doesn't exist, fetch from CoinGecko
-    let price = lastPrice?.price || 0; // Use existing price as fallback
-
-    try {
-      const response = await fetch(
-        'https://api.coinbase.com/v2/exchange-rates?currency=USDC',
-        {
-          signal: AbortSignal.timeout(5000),
-          headers: { 'Accept': 'application/json' }
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.data?.rates?.[currency]) {
-          price = parseFloat(parseFloat(data.data.rates[currency]).toFixed(2));
-        }
-      }
-    } catch (fetchError) {
-      console.warn('Coinbase fetch failed, using existing price:', fetchError);
-      // Return existing price from database without updating
+    // Check if there's already a pending request for this currency
+    const cacheKey = `USDC-${currency}`;
+    if (pendingRequests.has(cacheKey)) {
+      const price = await pendingRequests.get(cacheKey)!;
       return NextResponse.json({ success: true, price });
     }
 
-    // Update database with new price only if fetch succeeded
-    const { error } = await supabase
-      .from('prices')
-      .upsert({
-        token: 'USDC',
-        currency: currency,
-        price: price,
-        updated_at: now.toISOString()
-      }, {
-        onConflict: 'token,currency'
-      });
+    // Create a new request promise
+    const fetchPromise = (async (): Promise<number> => {
+      let price = lastPrice?.price || 0;
+      
+      try {
+        const response = await fetch(
+          'https://api.coinbase.com/v2/exchange-rates?currency=USDC',
+          {
+            signal: AbortSignal.timeout(5000),
+            headers: { 'Accept': 'application/json' }
+          }
+        );
 
-    if (error) {
-      console.warn('Failed to upsert price:', error);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.data?.rates?.[currency]) {
+            price = parseFloat(parseFloat(data.data.rates[currency]).toFixed(2));
+            
+            // Update database with new price
+            await supabase
+              .from('prices')
+              .upsert({
+                token: 'USDC',
+                currency: currency,
+                price: price,
+                updated_at: now.toISOString()
+              }, {
+                onConflict: 'token,currency'
+              });
+          }
+        }
+      } catch (fetchError) {
+        console.warn('Coinbase fetch failed, using existing price:', fetchError);
+      }
+      
+      return price;
+    })();
+
+    // Store the promise and clean up after completion
+    pendingRequests.set(cacheKey, fetchPromise);
+    
+    try {
+      const price = await fetchPromise;
+      return NextResponse.json({ success: true, price });
+    } finally {
+      pendingRequests.delete(cacheKey);
     }
-
-    return NextResponse.json({ success: true, price });
   } catch (error: unknown) {
     console.error('Error in prices API:', error);
     // Return 0 price if everything fails

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Wallet } from "@coinbase/onchainkit/wallet";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -28,6 +28,7 @@ export default function Home() {
   const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number } | null>(null);
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
+  const orderStatusRef = useRef<string | null>(null);
 
   // Get USDC balance
   const { data: usdcBalance } = useBalance({
@@ -60,7 +61,7 @@ export default function Home() {
       if (!response.ok) throw new Error('Failed to fetch price');
       return response.json();
     },
-    refetchInterval: 15000, // every 15s
+    refetchInterval: 30000, // every 30s
     retry: 3,
   });
 
@@ -135,58 +136,94 @@ export default function Home() {
   // Pay with permit and send airtime
   const payAndSendMutation = useMutation({
     mutationFn: async (order: { orderRef: string; amountKes: number; amountUsdc: number }) => {
-      if (!address) {
-        throw new Error('Please connect your wallet first');
+      try {
+        if (!address) {
+          throw new Error('Please connect your wallet first');
+        }
+        
+        if (!walletClient) {
+          throw new Error('Unable to access wallet. Please refresh the page and try again');
+        }
+        
+        const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour
+        const amountWei = parseUnits(order.amountUsdc.toString(), 6); // USDC has 6 decimals
+        
+        // Generate permit signature
+        const permitSig = await generatePermitSignature({
+          tokenAddress: USDC_ADDRESS,
+          owner: address,
+          spender: AIRTIME_CONTRACT_ADDRESS,
+          value: amountWei,
+          deadline,
+          walletClient,
+          chainId: (await walletClient.getChainId?.()) ?? 84532 // use wallet chainId when available
+        });
+        
+        if (permitSig.error) throw new Error(permitSig.error);
+        if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
+        
+        // Call smart contract (token address now stored in contract)
+        const txHash = await walletClient.writeContract({
+          address: AIRTIME_CONTRACT_ADDRESS,
+          abi: AIRTIME_ABI,
+          functionName: 'depositWithPermit',
+          args: [
+            order.orderRef,
+            amountWei,
+            BigInt(deadline),
+            permitSig.v,
+            permitSig.r,
+            permitSig.s
+          ]
+        });
+        
+        // Now send airtime
+        const airtimeResponse = await fetch("/api/airtime/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            orderRef: order.orderRef,
+            txHash 
+          }),
+        });
+        
+        if (!airtimeResponse.ok) {
+          const errorText = await airtimeResponse.text();
+          throw new Error(`Airtime service error: ${airtimeResponse.status}`);
+        }
+        
+        const result = await airtimeResponse.json();
+        return result;
+      } catch (error: any) {
+        // Transform technical errors into user-friendly messages
+        if (error.message?.includes('User rejected') || error.message?.includes('user rejected')) {
+          throw new Error('Transaction cancelled. Please try again when ready to complete the payment.');
+        }
+        if (error.message?.includes('insufficient funds')) {
+          throw new Error('Insufficient USDC balance. Please add more USDC to your wallet.');
+        }
+        if (error.message?.includes('network')) {
+          throw new Error('Network error. Please check your connection and try again.');
+        }
+        // Re-throw the original error if it's already user-friendly
+        throw error;
       }
-      
-      if (!walletClient) {
-        throw new Error('Unable to access wallet. Please refresh the page and try again');
-      }
-      
-      const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-      const amountWei = parseUnits(order.amountUsdc.toString(), 6); // USDC has 6 decimals
-      
-      // Generate permit signature
-      const permitSig = await generatePermitSignature({
-        tokenAddress: USDC_ADDRESS,
-        owner: address,
-        spender: AIRTIME_CONTRACT_ADDRESS,
-        value: amountWei,
-        deadline,
-        walletClient,
-        chainId: (await walletClient.getChainId?.()) ?? 84532 // use wallet chainId when available
-      });
-      
-      if (permitSig.error) throw new Error(permitSig.error);
-      if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
-      
-      // Call smart contract (token address now stored in contract)
-      const txHash = await walletClient.writeContract({
-        address: AIRTIME_CONTRACT_ADDRESS,
-        abi: AIRTIME_ABI,
-        functionName: 'depositWithPermit',
-        args: [
-          order.orderRef,
-          amountWei,
-          BigInt(deadline),
-          permitSig.v,
-          permitSig.r,
-          permitSig.s
-        ]
-      });
-      
-      // Now send airtime
-      const airtimeResponse = await fetch("/api/airtime/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          orderRef: order.orderRef,
-          txHash 
-        }),
-      });
-      
-      return airtimeResponse.json();
     },
+  });
+
+  // Poll order status
+  const { data: orderStatus }: { data: any } = useQuery({
+    queryKey: ['orderStatus', order?.orderRef],
+    queryFn: async () => {
+      if (!order?.orderRef) return null;
+      const response = await fetch(`/api/orders/${order.orderRef}`);
+      if (!response.ok) throw new Error('Failed to fetch order status');
+      const data = await response.json();
+      return data;
+    },
+    enabled: !!order?.orderRef,
+    refetchInterval: 2000, // Poll every 2 seconds
+    refetchIntervalInBackground: true,
   });
 
   const handleContinue = async () => {
@@ -413,10 +450,14 @@ export default function Home() {
 
               <button
                 onClick={handlePay}
-                disabled={payAndSendMutation.isPending || !address}
+                disabled={payAndSendMutation.isPending || !address || orderStatus?.status === 'refunded' || orderStatus?.status === 'fulfilled'}
                 className={styles.continueButton}
               >
-                {payAndSendMutation.isPending ? (
+                {orderStatus?.status === 'refunded' ? (
+                  'Order Refunded'
+                ) : orderStatus?.status === 'fulfilled' ? (
+                  'Order Completed'
+                ) : payAndSendMutation.isPending ? (
                   'Processing Payment...'
                 ) : !address ? (
                   'Connect Wallet to Pay'
@@ -425,12 +466,43 @@ export default function Home() {
                 )}
               </button>
 
-              {payAndSendMutation.isSuccess && (
+              {/* Order Status Display */}
+              {orderStatus && (
+                <div className={styles.statusDisplay}>
+                  {orderStatus.status === 'pending' && orderStatus.tx_hash && (
+                    <div className={styles.pendingMessage}>
+                      <div className={styles.spinner}></div>
+                      Processing airtime delivery...
+                    </div>
+                  )}
+                  
+                  {orderStatus.status === 'fulfilled' && (
+                    <div className={styles.successMessage}>
+                      <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+                      </svg>
+                      Airtime delivered successfully!
+                    </div>
+                  )}
+                  
+                  {orderStatus.status === 'refunded' && (
+                    <div className={styles.errorMessage}>
+                      <svg className={styles.errorIcon} viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
+                      </svg>
+                      Airtime delivery failed - Payment refunded
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {payAndSendMutation.isSuccess && !orderStatus && (
                 <div className={styles.successMessage}>
                   <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
                     <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
                   </svg>
-                  Payment successful! Airtime sent!
+                  Payment successful! Processing airtime...
                 </div>
               )}
 

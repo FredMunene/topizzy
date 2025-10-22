@@ -177,17 +177,11 @@ export async function POST(request: NextRequest) {
     console.log('AfricasTalking response:', result)
 
     if (response.ok && result.responses?.[0]?.status === 'Sent') {
-      // Success
+      // Airtime request accepted - keep order as pending until callback confirms delivery
       const requestId = result.responses[0].requestId
-      console.log('Airtime request successful, requestId:', requestId)
+      console.log('Airtime request accepted, requestId:', requestId)
 
-      // Update order status
-      await supabase
-        .from('orders')
-        .update({ status: 'fulfilled' })
-        .eq('id', order.id)
-
-      // Insert airtime transaction
+      // Insert airtime transaction (order stays pending)
       console.log('Inserting airtime transaction with requestId:', requestId)
       const { error: insertError } = await supabase
         .from('airtime_transactions')
@@ -197,7 +191,7 @@ export async function POST(request: NextRequest) {
           amount: order.amount,
           currency: currency,
           provider_request_id: requestId,
-          provider_status: 'Success'
+          provider_status: 'Sent'
         })
         
       if (insertError) {
