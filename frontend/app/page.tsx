@@ -167,7 +167,7 @@ export default function Home() {
           value: amountWei,
           deadline,
           walletClient,
-          chainId: (await walletClient.getChainId?.()) ?? 84532 // use wallet chainId when available
+          chainId: (await walletClient.getChainId?.()) ?? 8453 // use wallet chainId when available
         });
         
         if (permitSig.error) throw new Error(permitSig.error);

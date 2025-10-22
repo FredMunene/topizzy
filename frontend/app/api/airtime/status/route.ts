@@ -20,6 +20,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 
 export async function POST(request: NextRequest) {
   console.log('=== AIRTIME STATUS API START ===')
+  console.log('STATUS TREASURY_PRIVATE_KEY configured:', !!TREASURY_PRIVATE_KEY)
   try {
     // AfricasTalking sends form-encoded data, not JSON
     const formData = await request.formData()
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
       
       try {
         if (!TREASURY_PRIVATE_KEY) {
-          console.error('Treasury private key not configured')
+          console.error('STATUS REFUND DEBUG: Treasury private key not configured')
           await supabase
             .from('orders')
             .update({ status: 'refunded' })
@@ -128,8 +129,13 @@ export async function POST(request: NextRequest) {
         })
 
         const order = transaction.orders
-        const amountWei = parseUnits(order.amount_usdc.toString(), 6)
+        // Refund only airtime cost, keep service fee
+        const refundAmount = order.amount_usdc - (order.service_fee_usdc || 0)
+        const amountWei = parseUnits(refundAmount.toString(), 6)
+        
+        console.log('STATUS REFUND DEBUG: Total paid:', order.amount_usdc, 'Service fee:', order.service_fee_usdc, 'Refund amount:', refundAmount)
 
+        console.log('STATUS REFUND DEBUG: Executing refund transaction...')
         const refundTxHash = await walletClient.writeContract({
           address: AIRTIME_CONTRACT_ADDRESS,
           abi: AIRTIME_ABI,
@@ -140,13 +146,17 @@ export async function POST(request: NextRequest) {
             amountWei
           ]
         })
+        console.log('STATUS REFUND DEBUG: Refund tx hash:', refundTxHash)
 
+        console.log('STATUS REFUND DEBUG: Waiting for refund transaction confirmation...')
         await publicClient.waitForTransactionReceipt({
           hash: refundTxHash,
           confirmations: 1
         })
+        console.log('STATUS REFUND DEBUG: Refund transaction confirmed')
 
-        await supabase
+        console.log('STATUS REFUND DEBUG: Updating order with refund tx hash:', refundTxHash)
+        const { error: updateError } = await supabase
           .from('orders')
           .update({ 
             status: 'refunded',
@@ -154,10 +164,16 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString()
           })
           .eq('id', transaction.order_id)
+        
+        if (updateError) {
+          console.error('STATUS REFUND DEBUG: Failed to update order with refund tx hash:', updateError)
+        } else {
+          console.log('STATUS REFUND DEBUG: Order updated successfully with refund tx hash')
+        }
 
-        console.log('Refund executed successfully:', refundTxHash)
+        console.log('STATUS REFUND DEBUG: Refund executed successfully:', refundTxHash)
       } catch (refundError) {
-        console.error('Refund execution failed:', refundError)
+        console.error('STATUS REFUND DEBUG: Refund execution failed:', refundError)
         await supabase
           .from('orders')
           .update({ status: 'refunded' })
