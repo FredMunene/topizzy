@@ -19,7 +19,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 })
 
 export async function POST(request: NextRequest) {
-  console.log('=== AIRTIME STATUS API START ===')
   try {
     // AfricasTalking sends form-encoded data, not JSON
     const formData = await request.formData()
@@ -27,27 +26,11 @@ export async function POST(request: NextRequest) {
     // Extract form fields
     const requestId = formData.get('requestId') as string
     const status = formData.get('status') as string
-    const phoneNumber = formData.get('phoneNumber') as string
-    const value = formData.get('value') as string
-    const description = formData.get('description') as string
+    const _phoneNumber = formData.get('phoneNumber') as string
+    const _value = formData.get('value') as string
+    const _description = formData.get('description') as string
     
-    console.log('Form data received:', {
-      requestId,
-      status,
-      phoneNumber,
-      value,
-      description
-    })
 
-    // Debug: Check all transactions first
-    const { data: allTransactions } = await supabase
-      .from('airtime_transactions')
-      .select('provider_request_id')
-      .limit(10)
-    
-    console.log('All requestIds in database:', allTransactions?.map(t => t.provider_request_id))
-    console.log('Looking for requestId:', JSON.stringify(requestId))
-    console.log('RequestId length:', requestId.length)
     
     // Find airtime transaction
     const { data: transaction, error: txError } = await supabase
@@ -57,23 +40,10 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (txError || !transaction) {
-      console.error('Transaction not found for requestId:', requestId, txError)
-      
-      // Try case-insensitive search
-      const { data: caseInsensitive } = await supabase
-        .from('airtime_transactions')
-        .select('provider_request_id')
-        .ilike('provider_request_id', requestId)
-      
-      console.log('Case-insensitive search results:', caseInsensitive)
       return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
     }
 
-    console.log('Found transaction:', transaction)
-
-
     // Update transaction status
-    console.log('Updating transaction status from', transaction.provider_status, 'to', status)
     const { error: updateError } = await supabase
       .from('airtime_transactions')
       .update({
@@ -88,7 +58,6 @@ export async function POST(request: NextRequest) {
 
     // Update order status based on final delivery status
     if (status === 'Success') {
-      console.log('Delivery successful - updating order to fulfilled')
       const { error: orderUpdateError } = await supabase
         .from('orders')
         .update({
@@ -101,7 +70,6 @@ export async function POST(request: NextRequest) {
         console.error('Failed to update order to fulfilled:', orderUpdateError)
       }
     } else if (status === 'Failed') {
-      console.log('Delivery failed - initiating refund')
       
       try {
         if (!TREASURY_PRIVATE_KEY) {
@@ -128,8 +96,9 @@ export async function POST(request: NextRequest) {
         })
 
         const order = transaction.orders
-        const amountWei = parseUnits(order.amount_usdc.toString(), 6)
-
+        // Refund only airtime cost, keep service fee
+        const refundAmount = order.amount_usdc - (order.service_fee_usdc || 0)
+        const amountWei = parseUnits(refundAmount.toString(), 6)
         const refundTxHash = await walletClient.writeContract({
           address: AIRTIME_CONTRACT_ADDRESS,
           abi: AIRTIME_ABI,
@@ -141,12 +110,14 @@ export async function POST(request: NextRequest) {
           ]
         })
 
+        // Wait for refund transaction
         await publicClient.waitForTransactionReceipt({
           hash: refundTxHash,
           confirmations: 1
         })
 
-        await supabase
+        // Update order with refund status and refund tx hash
+        const { error: updateError } = await supabase
           .from('orders')
           .update({ 
             status: 'refunded',
@@ -154,8 +125,10 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString()
           })
           .eq('id', transaction.order_id)
-
-        console.log('Refund executed successfully:', refundTxHash)
+        
+        if (updateError) {
+          console.error('Failed to update order with refund tx hash:', updateError)
+        }
       } catch (refundError) {
         console.error('Refund execution failed:', refundError)
         await supabase
@@ -167,14 +140,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('=== AIRTIME STATUS API ERROR ===')
     console.error('Error handling airtime status:', error)
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
     return NextResponse.json({ 
       error: 'Failed to handle status',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
-  } finally {
-    console.log('=== AIRTIME STATUS API END ===')
   }
 }

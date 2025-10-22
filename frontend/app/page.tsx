@@ -9,7 +9,7 @@ import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 import styles from "./page.module.css";
 
-const USDC_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48' as `0x${string}` // Base Mainnet USDC
+const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}` // Base Mainnet USDC
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 
 const countries = [
@@ -27,14 +27,53 @@ export default function Home() {
   const [validationError, setValidationError] = useState<string>("");
   const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number; airtimeUsdc?: number; serviceFeeUsdc?: number } | null>(null);
   const [shouldPoll, setShouldPoll] = useState(true);
-  const { address } = useAccount();
+  const { address, chain } = useAccount();
   const { data: walletClient } = useWalletClient();
+
+  // Switch to Base Mainnet
+  const switchToBaseMainnet = async () => {
+    const ethereum = (window as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
+    if (!ethereum) return;
+    
+    try {
+      await ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x2105' }], // 8453 in hex
+      });
+    } catch (error: unknown) {
+      // If network doesn't exist, add it
+      if ((error as { code?: number }).code === 4902) {
+        try {
+          await ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x2105',
+              chainName: 'Base Mainnet',
+              nativeCurrency: {
+                name: 'Ethereum',
+                symbol: 'ETH',
+                decimals: 18,
+              },
+              rpcUrls: ['https://mainnet.base.org'],
+              blockExplorerUrls: ['https://basescan.org'],
+            }],
+          });
+        } catch (addError: unknown) {
+          console.error('Failed to add Base Mainnet:', addError);
+        }
+      } else {
+        console.error('Failed to switch network:', error);
+      }
+    }
+  };
 
   // Get USDC balance
   const { data: usdcBalance } = useBalance({
     address: address,
     token: USDC_ADDRESS,
   });
+
+
 
   const fullPhoneNumber = selectedCountry.prefix + phoneNumber;
   const currencyMap: { [key: string]: string } = {
@@ -167,7 +206,7 @@ export default function Home() {
           value: amountWei,
           deadline,
           walletClient,
-          chainId: (await walletClient.getChainId?.()) ?? 84532 // use wallet chainId when available
+          chainId: (await walletClient.getChainId?.()) ?? 8453 // use wallet chainId when available
         });
         
         if (permitSig.error) throw new Error(permitSig.error);
@@ -389,6 +428,26 @@ export default function Home() {
                     <text x="8" y="11" fontSize="10" textAnchor="middle" fill="currentColor">i</text>
                   </svg>
                   wallet balance USDC {usdcBalanceFormatted}
+                  {chain && chain.id !== 8453 && (
+                    <div style={{color: 'orange', fontSize: '12px'}}>
+                      Connected to {chain.name}. 
+                      <button 
+                        onClick={switchToBaseMainnet}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'orange',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          padding: 0,
+                          marginLeft: '4px'
+                        }}
+                      >
+                        Switch to Base Mainnet
+                      </button>
+                    </div>
+                  )}
                   <span className={styles.exchangeRate}>
                     1 USDC = {currentCurrency} {price > 0 ? price.toFixed(2) : '0.00'}
                   </span>
@@ -484,15 +543,23 @@ export default function Home() {
 
               <button
                 onClick={handlePay}
-                disabled={payAndSendMutation.isPending || !address || orderStatus?.status === 'refunded' || orderStatus?.status === 'fulfilled'}
+                disabled={
+                  payAndSendMutation.isPending || 
+                  !address || 
+                  orderStatus?.status === 'refunded' || 
+                  orderStatus?.status === 'fulfilled' ||
+                  (orderStatus?.tx_hash && orderStatus?.status === 'pending')
+                }
                 className={styles.continueButton}
               >
                 {orderStatus?.status === 'refunded' ? (
                   'Order Refunded'
                 ) : orderStatus?.status === 'fulfilled' ? (
                   'Order Completed'
-                // ) : payAndSendMutation.isPending ? (
-                //   'Processing Payment...'
+                ) : (orderStatus?.tx_hash && orderStatus?.status === 'pending') ? (
+                  'Processing Airtime...'
+                ) : payAndSendMutation.isPending ? (
+                  'Processing Payment...'
                 ) : !address ? (
                   'Connect Wallet to Pay'
                 ) : (
@@ -516,11 +583,18 @@ export default function Home() {
                   
                   {orderStatus.status === 'refunded' && (
                     <div className={styles.errorMessage}>
-                      <svg className={styles.errorIcon} viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-                      </svg>
-                      Airtime delivery failed - Payment refunded
+                      {orderStatus.refund_tx_hash && (
+                        <div style={{marginTop: '8px', fontSize: '12px'}}>
+                          <a 
+                            href={`https://basescan.org/tx/${orderStatus.refund_tx_hash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{color: '#0ea5e9', textDecoration: 'underline'}}
+                          >
+                            View refund transaction
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

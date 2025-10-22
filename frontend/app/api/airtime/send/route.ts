@@ -27,7 +27,6 @@ const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRES
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY as `0x${string}`
 
 export async function POST(request: NextRequest) {
-  console.log('=== AIRTIME SEND API START ===')
   try {
     const body = await request.json()
     console.log('Request body:', body)
@@ -230,7 +229,7 @@ export async function POST(request: NextRequest) {
       // Execute refund on blockchain
       try {
         if (!TREASURY_PRIVATE_KEY) {
-          console.error('Treasury private key not configured')
+          console.error('REFUND DEBUG: Treasury private key not configured')
           // Update order to refunded status (manual refund required)
           await supabase
             .from('orders')
@@ -246,8 +245,9 @@ export async function POST(request: NextRequest) {
           transport: http()
         })
 
-        const amountWei = parseUnits(order.amount_usdc.toString(), 6) // USDC has 6 decimals
-
+        // Refund only airtime cost, keep service fee
+        const refundAmount = order.amount_usdc - (order.service_fee_usdc || 0)
+        const amountWei = parseUnits(refundAmount.toString(), 6) // USDC has 6 decimals
         const refundTxHash = await walletClient.writeContract({
           address: AIRTIME_CONTRACT_ADDRESS,
           abi: AIRTIME_ABI,
@@ -266,13 +266,17 @@ export async function POST(request: NextRequest) {
         })
 
         // Update order with refund status and refund tx hash
-        await supabase
+        const { error: updateError } = await supabase
           .from('orders')
           .update({ 
             status: 'refunded',
             refund_tx_hash: refundTxHash
           })
           .eq('id', order.id)
+        
+        if (updateError) {
+          console.error('Failed to update order with refund tx hash:', updateError)
+        }
 
         return NextResponse.json({ 
           error: 'Airtime send failed, refund executed', 
@@ -295,15 +299,10 @@ export async function POST(request: NextRequest) {
       }
     }
   } catch (error) {
-    console.error('=== AIRTIME SEND API ERROR ===')
-    console.error('Error details:', error)
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    console.error('Error in airtime send API:', error)
     return NextResponse.json({ 
       error: 'Failed to send airtime', 
-      details: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
-  } finally {
-    console.log('=== AIRTIME SEND API END ===')
   }
 }
