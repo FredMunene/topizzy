@@ -65,9 +65,51 @@
   position: relative;
 }
 
+.phoneInputWithFlag {
+  flex: 0 0 180px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.flagIcon {
+  position: absolute;
+  left: 0.75rem;
+  font-size: 1.125rem;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.countrySelect {
+  padding: 0.75rem 1rem;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border: 1px solid #d1d1d1;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 80px;
+  color: #000000 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+.countrySelect:hover {
+  background: #f5f5f5;
+  border-color: #5c9c92;
+}
+
+.countrySelect:focus {
+  border-color: #5c9c92;
+  box-shadow: 0 0 0 3px rgba(92, 156, 146, 0.1);
+  outline: none;
+}
+
 .phoneInput {
   flex: 1;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
   border: 1px solid #d1d1d1;
   border-radius: 8px;
   font-size: 1rem;
@@ -91,13 +133,14 @@
   padding: 0.75rem 1rem;
   background: #ffffff !important;
   background-color: #ffffff !important;
-  border: 1px solid #d1d1d1;
+  border: 1px solid #111010;
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   min-width: 70px;
+  
   color: #000000 !important;
   opacity: 1 !important;
   -webkit-text-fill-color: #000000 !important;
@@ -105,7 +148,7 @@
 
 .countryButton:hover {
   background: #f5f5f5;
-  border-color: #5c9c92;
+  border-color: #101a18;
 }
 
 .helperText {
