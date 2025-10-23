@@ -92,7 +92,10 @@ export async function generatePermitSignature({
 
     const { v, r, s } = hexToSignature(signature as `0x${string}`);
 
-    return { v: Number(v), r, s, nonce, deadline };
+    // Convert v to the correct format (27 or 28)
+    const vValue = v === 0n ? 27 : v === 1n ? 28 : Number(v);
+
+    return { v: vValue, r, s, nonce, deadline };
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error during permit signature generation.';

@@ -302,6 +302,11 @@ export default function Home() {
       return;
     }
     
+    if (phoneNumber.length !== 9) {
+      setValidationError("Phone number must be exactly 9 digits");
+      return;
+    }
+    
     if (!amountKes || Number.parseFloat(amountKes) <= 0) {
       setValidationError("Please enter a valid amount");
       return;
@@ -354,23 +359,31 @@ export default function Home() {
               <div className={styles.formGroup}>
                 <label className={styles.label}>Phone Number</label>
                 <div className={styles.phoneInputWrapper}>
-                  <button 
-                    className={styles.countryButton}
-                    onClick={() => {
-                      const currentIndex = countries.findIndex(c => c.code === selectedCountry.code);
-                      const nextIndex = (currentIndex + 1) % countries.length;
-                      setSelectedCountry(countries[nextIndex]);
+                  <select 
+                    className={styles.countrySelect}
+                    value={selectedCountry.code}
+                    onChange={(e) => {
+                      const country = countries.find(c => c.code === e.target.value);
+                      if (country) setSelectedCountry(country);
                     }}
                   >
-                    {selectedCountry.prefix}
-                  </button>
-                  <input
-                    type="tel"
-                    placeholder="743913802"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
-                    className={styles.phoneInput}
-                  />
+                    {countries.map(country => (
+                      <option key={country.code} value={country.code}>
+                        {country.prefix}
+                      </option>
+                    ))}
+                  </select>
+                  <div className={styles.phoneInputWithFlag}>
+                    <span className={styles.flagIcon}>{selectedCountry.code === 'KE' ? '🇰🇪' : selectedCountry.code === 'RW' ? '🇷🇼' : selectedCountry.code === 'UG' ? '🇺🇬' : '🇹🇿'}</span>
+                    <input
+                      type="tel"
+                      placeholder="743913802"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
+                      className={styles.phoneInput}
+                      maxLength={9}
+                    />
+                  </div>
                 </div>
                 <div className={styles.helperText}>
                   <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
@@ -456,7 +469,7 @@ export default function Home() {
 
               {/* You will pay */}
               <div className={styles.paymentPreview}>
-                <span className={styles.paymentLabel}>You will pay</span>
+                <span className={styles.paymentLabel}>Airtime Cost</span>
                 <span className={styles.paymentAmount}>
                   {isPriceLoading ? (
                     <span className={styles.loadingDots}>...</span>
