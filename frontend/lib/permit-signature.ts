@@ -92,8 +92,13 @@ export async function generatePermitSignature({
 
     const { v, r, s } = hexToSignature(signature as `0x${string}`);
 
-    // Convert v to the correct format (27 or 28)
-    const vValue = v === 0n ? 27 : v === 1n ? 28 : Number(v);
+    // For Base App, we need to ensure v is in the correct range (27-28)
+    // If v is 0 or 1, convert to 27 or 28
+    let vValue = Number(v);
+    if (vValue < 27) {
+      vValue = vValue === 0 ? 27 : vValue === 1 ? 28 : vValue;
+    }
+
 
     return { v: vValue, r, s, nonce, deadline };
 
