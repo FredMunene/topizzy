@@ -96,34 +96,45 @@ export async function generatePermitSignature({
     function parseSignature(sig: string) {
       if (!sig) throw new Error('Empty signature');
       const s = sig.startsWith('0x') ? sig.slice(2) : sig;
-      // Expect 65 bytes (130 hex chars) signature (r(32) + s(32) + v(1))
-      if (s.length < 130) {
-        throw new Error(`Unexpected signature length: ${s.length}`);
+
+      // Two common formats:
+      // - 65 byte (130 hex chars) r(32) + s(32) + v(1)
+      // - 64 byte (128 hex chars) compact EIP-2098 r(32) + vs(32) where highest bit of vs stores v
+      if (s.length !== 130 && s.length !== 128) {
+        throw new Error(`Unexpected signature length: ${s.length} (raw: ${sig})`);
       }
 
       const r = '0x' + s.slice(0, 64);
-      const sValue = '0x' + s.slice(64, 128);
-      let vHex = s.slice(128, 130);
-      // Some wallets return a 1-byte v as 00/01, others 1b/1c (27/28), some append 00/01 as 2 hex digits
-      if (!vHex) {
-        // fallback: take last byte
-        vHex = s.slice(-2);
-      }
-      let v = Number.parseInt(vHex, 16);
 
-      // Normalise v to 27 or 28
-      if (v === 0) v = 27;
-      else if (v === 1) v = 28;
-      else if (v >= 27 && v <= 28) {
-        // v already 27 or 28, keep as-is
-      }
-      else if (v > 28) {
-        // handle chain id embedding or other variants: reduce to lowest byte
-        v = v & 0xff;
+      if (s.length === 130) {
+        // standard r + s + v
+        const sValue = '0x' + s.slice(64, 128);
+        let vHex = s.slice(128, 130);
+        if (!vHex) vHex = s.slice(-2);
+        let v = Number.parseInt(vHex, 16);
         if (v === 0) v = 27;
         else if (v === 1) v = 28;
+        else if (v >= 27 && v <= 28) {
+          // noop
+        } else if (v > 28) {
+          v = v & 0xff;
+          if (v === 0) v = 27;
+          else if (v === 1) v = 28;
+        }
+        return { v, r, s: sValue } as { v: number; r: `0x${string}`; s: `0x${string}` };
       }
 
+      // s.length === 128 -> EIP-2098 compact signature (r || vs)
+      const vsHex = s.slice(64, 128);
+      // vs is 32 bytes; highest bit of vs indicates v (0 -> v=27, 1 -> v=28)
+      const vsBig = BigInt('0x' + vsHex);
+      const vBit = (vsBig >> 255n) & 1n; // extract highest bit
+      const v = vBit === 0n ? 27 : 28;
+      const sBig = vsBig & ((1n << 255n) - 1n); // clear highest bit
+      let sHex = sBig.toString(16);
+      // pad to 64 chars
+      if (sHex.length < 64) sHex = sHex.padStart(64, '0');
+      const sValue = '0x' + sHex;
       return { v, r, s: sValue } as { v: number; r: `0x${string}`; s: `0x${string}` };
     }
 
