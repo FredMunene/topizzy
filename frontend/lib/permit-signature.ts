@@ -1,4 +1,4 @@
-import { createPublicClient, http, hexToSignature } from 'viem';
+import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
 
 /**
@@ -82,6 +82,7 @@ export async function generatePermitSignature({
     };
 
     // Sign the message
+    console.log('[permit] signing typed data', { domain, types, message });
     const signature = await walletClient.signTypedData({
       account: owner,
       domain,
@@ -89,18 +90,72 @@ export async function generatePermitSignature({
       primaryType: 'Permit',
       message
     });
+    console.log('[permit] raw signature returned by wallet:', signature);
 
-    const { v, r, s } = hexToSignature(signature as `0x${string}`);
+    // Robust signature parsing to support wallets that return v as 0/1 or 27/28
+    function parseSignature(sig: string) {
+      if (!sig) throw new Error('Empty signature');
+      const s = sig.startsWith('0x') ? sig.slice(2) : sig;
+      // Expect 65 bytes (130 hex chars) signature (r(32) + s(32) + v(1))
+      if (s.length < 130) {
+        throw new Error(`Unexpected signature length: ${s.length}`);
+      }
 
-    // For Base App, we need to ensure v is in the correct range (27-28)
-    // If v is 0 or 1, convert to 27 or 28
-    let vValue = Number(v);
-    if (vValue < 27) {
-      vValue = vValue === 0 ? 27 : vValue === 1 ? 28 : vValue;
+      const r = '0x' + s.slice(0, 64);
+      const sValue = '0x' + s.slice(64, 128);
+      let vHex = s.slice(128, 130);
+      // Some wallets return a 1-byte v as 00/01, others 1b/1c (27/28), some append 00/01 as 2 hex digits
+      if (!vHex) {
+        // fallback: take last byte
+        vHex = s.slice(-2);
+      }
+      let v = Number.parseInt(vHex, 16);
+
+      // Normalise v to 27 or 28
+      if (v === 0) v = 27;
+      else if (v === 1) v = 28;
+      else if (v >= 27 && v <= 28) {
+        // v already 27 or 28, keep as-is
+      }
+      else if (v > 28) {
+        // handle chain id embedding or other variants: reduce to lowest byte
+        v = v & 0xff;
+        if (v === 0) v = 27;
+        else if (v === 1) v = 28;
+      }
+
+      return { v, r, s: sValue } as { v: number; r: `0x${string}`; s: `0x${string}` };
     }
 
+    let parsed;
+    try {
+      parsed = parseSignature(signature);
+    } catch (err) {
+      console.warn('[permit] initial parse failed, attempting retry once', err);
+      // retry once after a short delay - some wallets may need a moment
+      await new Promise((res) => setTimeout(res, 100));
+      const retrySig = await walletClient.signTypedData({
+        account: owner,
+        domain,
+        types,
+        primaryType: 'Permit',
+        message
+      });
+      console.log('[permit] retry raw signature:', retrySig);
+      parsed = parseSignature(retrySig);
+    }
 
-    return { v: vValue, r, s, nonce, deadline };
+    console.log('[permit] parsed signature components:', parsed);
+
+    // Validate signature components
+    if (!parsed.s || parsed.s === '0x' + '0'.repeat(64)) {
+      throw new Error('Invalid signature: s value is zero');
+    }
+    if (!parsed.r || parsed.r === '0x' + '0'.repeat(64)) {
+      throw new Error('Invalid signature: r value is zero');
+    }
+
+    return { v: parsed.v, r: parsed.r, s: parsed.s, nonce, deadline };
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error during permit signature generation.';
