@@ -28,7 +28,7 @@ export async function generatePermitSignature({
     });
 
     // Read token name for accurate EIP-712 domain binding
-    const tokenName = await publicClient.readContract({
+    const tokenName: string = await publicClient.readContract({
       address: tokenAddress,
       abi: [{
         name: 'name',
@@ -38,7 +38,7 @@ export async function generatePermitSignature({
         outputs: [{ name: '', type: 'string' }]
       }],
       functionName: 'name'
-    }) as string;
+    });
 
     // Get nonce
     const nonce = await publicClient.readContract({
@@ -93,49 +93,72 @@ export async function generatePermitSignature({
     console.log('[permit] raw signature returned by wallet:', signature);
 
     // Robust signature parsing to support wallets that return v as 0/1 or 27/28
-    function parseSignature(sig: string) {
+    // Helper functions to reduce complexity
+    function normalizeSignature(sig: string): string {
       if (!sig) throw new Error('Empty signature');
-      const s = sig.startsWith('0x') ? sig.slice(2) : sig;
-
-      // Two common formats:
-      // - 65 byte (130 hex chars) r(32) + s(32) + v(1)
-      // - 64 byte (128 hex chars) compact EIP-2098 r(32) + vs(32) where highest bit of vs stores v
-      if (s.length !== 130 && s.length !== 128) {
-        throw new Error(`Unexpected signature length: ${s.length} (raw: ${sig})`);
+      let s = sig.startsWith('0x') ? sig.slice(2) : sig;
+      
+      console.log('[permit] processing signature with length:', s.length);
+      s = s.replace(/^0+/, '').replace(/0+$/, '');
+      console.log('[permit] trimmed signature length:', s.length);
+      
+      if (!s || s.length === 0) {
+        const orig = sig.startsWith('0x') ? sig.slice(2) : sig;
+        const start = Math.floor((orig.length - 130) / 2);
+        s = orig.slice(start, start + 130).replace(/^0+/, '');
+        console.log('[permit] extracted middle signature length:', s.length);
       }
+      
+      return s;
+    }
 
-      const r = '0x' + s.slice(0, 64);
-
-      if (s.length === 130) {
-        // standard r + s + v
-        const sValue = '0x' + s.slice(64, 128);
-        let vHex = s.slice(128, 130);
-        if (!vHex) vHex = s.slice(-2);
-        let v = Number.parseInt(vHex, 16);
-        if (v === 0) v = 27;
-        else if (v === 1) v = 28;
-        else if (v >= 27 && v <= 28) {
-          // noop
-        } else if (v > 28) {
-          v = v & 0xff;
-          if (v === 0) v = 27;
-          else if (v === 1) v = 28;
-        }
-        return { v, r, s: sValue } as { v: number; r: `0x${string}`; s: `0x${string}` };
+    function normalizeV(v: number): number {
+      if (v === 0) return 27;
+      if (v === 1) return 28;
+      if (v >= 27 && v <= 28) return v;
+      
+      // Handle chain ID embedding or other variants
+      if (v > 28) {
+        const normalized = v & 0xff;
+        return normalizeV(normalized);
       }
+      
+      return v;
+    }
 
-      // s.length === 128 -> EIP-2098 compact signature (r || vs)
+    function parseStandard65Byte(s: string, r: `0x${string}`): { v: number; r: `0x${string}`; s: `0x${string}` } {
+      const sValue = ('0x' + s.slice(64, 128)) as `0x${string}`;
+      const vHex = s.slice(128, 130) || s.slice(-2);
+      const v = normalizeV(Number.parseInt(vHex, 16));
+      return { v, r, s: sValue };
+    }
+
+    function parseCompact64Byte(s: string, r: `0x${string}`): { v: number; r: `0x${string}`; s: `0x${string}` } {
       const vsHex = s.slice(64, 128);
-      // vs is 32 bytes; highest bit of vs indicates v (0 -> v=27, 1 -> v=28)
       const vsBig = BigInt('0x' + vsHex);
-      const vBit = (vsBig >> 255n) & 1n; // extract highest bit
-      const v = vBit === 0n ? 27 : 28;
-      const sBig = vsBig & ((1n << 255n) - 1n); // clear highest bit
-      let sHex = sBig.toString(16);
-      // pad to 64 chars
-      if (sHex.length < 64) sHex = sHex.padStart(64, '0');
-      const sValue = '0x' + sHex;
-      return { v, r, s: sValue } as { v: number; r: `0x${string}`; s: `0x${string}` };
+      const v = ((vsBig >> 255n) & 1n) === 0n ? 27 : 28;
+      
+      const sBig = vsBig & ((1n << 255n) - 1n);
+      const sHex = sBig.toString(16).padStart(64, '0');
+      const sValue = ('0x' + sHex) as `0x${string}`;
+      return { v, r, s: sValue };
+    }
+
+    function parseSignature(sig: string) {
+      const s = normalizeSignature(sig);
+      
+      if (!s || s.length === 0) {
+        throw new Error(`Invalid signature format. Raw: ${sig}`);
+      }
+      
+      if (s.length !== 130 && s.length !== 128) {
+        throw new Error(`Unexpected signature length after processing: ${s.length} (raw: ${sig})`);
+      }
+
+      const r = ('0x' + s.slice(0, 64)) as `0x${string}`;
+      return s.length === 130 
+        ? parseStandard65Byte(s, r)
+        : parseCompact64Byte(s, r);
     }
 
     let parsed;
