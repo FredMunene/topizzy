@@ -5,12 +5,26 @@ import { supabase } from '@/lib/supabase';
 const pendingRequests = new Map<string, Promise<number>>();
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = request.nextUrl
-  const currency = searchParams.get('currency') || 'KES';
+  // Track the last successful price for fallback
+  let lastSuccessfulPrice: { price: number; updated_at: string } | null = null;
 
   try {
+    // Validate required environment variables
+    if (!process.env.NEXT_SUPABASE_URL || !process.env.NEXT_SUPABASE_ANON_KEY) {
+      console.error('Missing required Supabase environment variables');
+      return NextResponse.json(
+        { error: 'Service configuration error' },
+        { status: 500 }
+      );
+    }
+
+    const { searchParams } = request.nextUrl
+    const currency = searchParams.get('currency') || 'KES';
+
+    // Add a small delay to prevent too frequent requests
+    await new Promise(resolve => setTimeout(resolve, 500));
     // First check database for existing price
-    const { data: lastPrice } = await supabase
+    const { data: priceFromDb } = await supabase
       .from('prices')
       .select('price, updated_at')
       .eq('token', 'USDC')
@@ -21,20 +35,21 @@ export async function GET(request: NextRequest) {
     const fifteenSecondsAgo = new Date(now.getTime() - 15000);
     
     // If price exists and is less than 15 seconds old, return it
-    if (lastPrice && new Date(lastPrice.updated_at) > fifteenSecondsAgo) {
-      return NextResponse.json({ success: true, price: lastPrice.price });
+    if (priceFromDb && new Date(priceFromDb.updated_at) > fifteenSecondsAgo) {
+      lastSuccessfulPrice = priceFromDb;
+      return NextResponse.json({ success: true, price: priceFromDb.price });
     }
 
     // Check if there's already a pending request for this currency
     const cacheKey = `USDC-${currency}`;
     if (pendingRequests.has(cacheKey)) {
-      const price = await pendingRequests.get(cacheKey)!;
-      return NextResponse.json({ success: true, price });
+      const cachedPrice = await pendingRequests.get(cacheKey)!;
+      return NextResponse.json({ success: true, price: cachedPrice });
     }
 
     // Create a new request promise
     const fetchPromise = (async (): Promise<number> => {
-      let price = lastPrice?.price || 0;
+      let currentPrice = priceFromDb?.price || 0;
       
       try {
         const response = await fetch(
@@ -48,7 +63,7 @@ export async function GET(request: NextRequest) {
         if (response.ok) {
           const data = await response.json();
           if (data.data?.rates?.[currency]) {
-            price = parseFloat(parseFloat(data.data.rates[currency]).toFixed(2));
+            currentPrice = Number.parseFloat(Number.parseFloat(data.data.rates[currency]).toFixed(2));
             
             // Update database with new price
             await supabase
@@ -56,18 +71,21 @@ export async function GET(request: NextRequest) {
               .upsert({
                 token: 'USDC',
                 currency: currency,
-                price: price,
+                price: currentPrice,
                 updated_at: now.toISOString()
               }, {
                 onConflict: 'token,currency'
               });
+
+            // Store as last successful price
+            lastSuccessfulPrice = { price: currentPrice, updated_at: now.toISOString() };
           }
         }
       } catch (fetchError) {
         console.warn('Coinbase fetch failed, using existing price:', fetchError);
       }
       
-      return price;
+      return currentPrice;
     })();
 
     // Store the promise and clean up after completion
@@ -80,8 +98,18 @@ export async function GET(request: NextRequest) {
       pendingRequests.delete(cacheKey);
     }
   } catch (error: unknown) {
-    console.error('Error in prices API:', error);
-    // Return 0 price if everything fails
-    return NextResponse.json({ success: false, price: 0 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Error in prices API:', errorMessage);
+
+    // Return fallback price and error info
+    return NextResponse.json({
+      success: false,
+      error: 'Failed to fetch price',
+      details: errorMessage,
+      price: lastSuccessfulPrice?.price || 0,
+      using_fallback: true
+    }, {
+      status: 500
+    });
   }
 }
