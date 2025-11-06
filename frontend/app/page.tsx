@@ -4,7 +4,7 @@ import { Wallet } from "@coinbase/onchainkit/wallet";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
-import { parseUnits, formatUnits } from 'viem'
+import { parseUnits, formatUnits, encodeFunctionData } from 'viem'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 import styles from "./page.module.css";
@@ -20,15 +20,52 @@ const countries = [
 ];
 
 export default function Home() {
-  const { setMiniAppReady, isMiniAppReady } = useMiniKit();
+  const mini = useMiniKit();
+  const isMiniAppReady = (mini as any)?.isMiniAppReady ?? false;
   const [selectedCountry, setSelectedCountry] = useState(countries[0]);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amountKes, setAmountKes] = useState("");
   const [validationError, setValidationError] = useState<string>("");
   const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number; airtimeUsdc?: number; serviceFeeUsdc?: number } | null>(null);
   const [shouldPoll, setShouldPoll] = useState(true);
-  const { address, chain } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  const { address: wagmiAddress, chain } = useAccount();
+  const { data: wagmiWalletClient } = useWalletClient();
+
+  // Build a unified wallet client that prefers MiniKit's kit when available,
+  // otherwise falls back to the wagmi wallet client.
+  const miniKitRuntime = (mini as any)?.kit ?? (mini as any);
+  const unifiedWalletClient: any = (function () {
+    if (miniKitRuntime && (miniKitRuntime.signTypedData || miniKitRuntime.request || miniKitRuntime.writeContract)) {
+      return {
+        // account (sync string or function)
+        account: miniKitRuntime.account ?? (typeof miniKitRuntime.getAccount === 'function' ? miniKitRuntime.getAccount() : undefined),
+        getChainId: async () => {
+          if (typeof miniKitRuntime.getChainId === 'function') return miniKitRuntime.getChainId();
+          if (typeof miniKitRuntime.request === 'function') {
+            const chainHex = await miniKitRuntime.request({ method: 'eth_chainId' });
+            return Number.parseInt(chainHex as string, 16);
+          }
+          return 8453; // fallback to Base
+        },
+        signTypedData: async (params: any) => {
+          if (typeof miniKitRuntime.signTypedData === 'function') return miniKitRuntime.signTypedData(params);
+          // fallback to eth_signTypedData_v4
+          const addr = params.account ?? miniKitRuntime.account;
+          const payload = JSON.stringify({ domain: params.domain, types: params.types, primaryType: params.primaryType, message: params.message });
+          return miniKitRuntime.request({ method: 'eth_signTypedData_v4', params: [addr, payload] });
+        },
+        writeContract: async ({ address, abi, functionName, args }: any) => {
+          if (typeof miniKitRuntime.writeContract === 'function') return miniKitRuntime.writeContract({ address, abi, functionName, args });
+          // encode and send via eth_sendTransaction
+          const data = encodeFunctionData({ abi, functionName, args });
+          return miniKitRuntime.request({ method: 'eth_sendTransaction', params: [{ to: address, data }] });
+        },
+      };
+    }
+    return wagmiWalletClient;
+  })();
+
+  const effectiveAddress = (unifiedWalletClient && (unifiedWalletClient.account ?? wagmiAddress)) ?? wagmiAddress;
 
   // Switch to Base Mainnet
   const switchToBaseMainnet = async () => {
@@ -67,9 +104,9 @@ export default function Home() {
     }
   };
 
-  // Get USDC balance
+  // Get USDC balance (use effective address from either MiniKit or wagmi)
   const { data: usdcBalance } = useBalance({
-    address: address,
+    address: effectiveAddress,
     token: USDC_ADDRESS,
   });
 
@@ -96,10 +133,10 @@ export default function Home() {
   const currentCurrency = currencyMap[phoneCountryCode] || "KES";
 
   useEffect(() => {
-    if (!isMiniAppReady) {
-      setMiniAppReady();
+    if (!(mini as any)?.isMiniAppReady) {
+      (mini as any)?.setMiniAppReady?.();
     }
-  }, [setMiniAppReady, isMiniAppReady]);
+  }, [mini]);
 
   
 
@@ -187,11 +224,11 @@ export default function Home() {
   const payAndSendMutation = useMutation({
     mutationFn: async (order: { orderRef: string; amountKes: number; amountUsdc: number }) => {
       try {
-        if (!address) {
+        if (!effectiveAddress) {
           throw new Error('Please connect your wallet first');
         }
-        
-        if (!walletClient) {
+
+        if (!unifiedWalletClient) {
           throw new Error('Unable to access wallet. Please refresh the page and try again');
         }
         
@@ -201,19 +238,19 @@ export default function Home() {
         // Generate permit signature
         const permitSig = await generatePermitSignature({
           tokenAddress: USDC_ADDRESS,
-          owner: address,
+          owner: effectiveAddress,
           spender: AIRTIME_CONTRACT_ADDRESS,
           value: amountWei,
           deadline,
-          walletClient,
-          chainId: (await walletClient.getChainId?.()) ?? 8453 // use wallet chainId when available
+          walletClient: unifiedWalletClient,
+          chainId: (await unifiedWalletClient.getChainId?.()) ?? 8453 // use wallet chainId when available
         });
         
         if (permitSig.error) throw new Error(permitSig.error);
         if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
         
         // Call smart contract (token address now stored in contract)
-        const txHash = await walletClient.writeContract({
+        const txHash = await unifiedWalletClient.writeContract({
           address: AIRTIME_CONTRACT_ADDRESS,
           abi: AIRTIME_ABI,
           functionName: 'depositWithPermit',
@@ -292,7 +329,7 @@ export default function Home() {
   }, [order]);
 
   const handleContinue = async () => {
-    if (!address) {
+    if (!effectiveAddress) {
       setValidationError("Please connect your wallet");
       return;
     }
@@ -318,14 +355,14 @@ export default function Home() {
     createOrderMutation.mutate({
       phoneNumber: fullPhoneNumber,
       amountKes: Number.parseFloat(amountKes),
-      walletAddress: address,
+      walletAddress: effectiveAddress,
     });
   };
 
   const handlePay = () => {
     if (!order) return;
     
-    if (!address) {
+    if (!effectiveAddress) {
       setValidationError("Please connect your wallet first");
       return;
     }
@@ -340,6 +377,33 @@ export default function Home() {
   const usdcBalanceFormatted = usdcBalance 
     ? Number.parseFloat(formatUnits(usdcBalance.value, 6)).toFixed(2)
     : "0.00";
+
+  // Normalized connection flags and button labels (avoid nested ternaries and negated conditions)
+  const isConnected = Boolean(effectiveAddress);
+  const continueDisabled = createOrderMutation.isPending || !isConnected || !phoneNumber || !amountKes || !!validationError || isPriceLoading;
+  let continueButtonText: string;
+  if (createOrderMutation.isPending) {
+    continueButtonText = 'Creating Order...';
+  } else if (!isConnected) {
+    continueButtonText = 'Connect Wallet';
+  } else {
+    continueButtonText = 'Continue';
+  }
+
+  let payButtonText: string;
+  if (orderStatus?.status === 'refunded') {
+    payButtonText = 'Order Refunded';
+  } else if (orderStatus?.status === 'fulfilled') {
+    payButtonText = 'Order Completed';
+  } else if (orderStatus?.tx_hash && orderStatus?.status === 'pending') {
+    payButtonText = 'Processing Airtime...';
+  } else if (payAndSendMutation.isPending) {
+    payButtonText = 'Processing Payment...';
+  } else if (!isConnected) {
+    payButtonText = 'Connect Wallet to Pay';
+  } else {
+    payButtonText = 'Pay & Send Airtime';
+  }
 
   return (
     <div className={styles.container}>
@@ -482,23 +546,10 @@ export default function Home() {
               {/* Continue Button */}
               <button
                 onClick={handleContinue}
-                disabled={
-                  createOrderMutation.isPending || 
-                  !address || 
-                  !phoneNumber || 
-                  !amountKes || 
-                  !!validationError ||
-                  isPriceLoading
-                }
+                disabled={continueDisabled}
                 className={styles.continueButton}
               >
-                {createOrderMutation.isPending ? (
-                  <span>Creating Order...</span>
-                ) : !address ? (
-                  <span>Connect Wallet</span>
-                ) : (
-                  <span>Continue</span>
-                )}
+                <span>{continueButtonText}</span>
               </button>
 
               {/* Warning */}
@@ -557,27 +608,15 @@ export default function Home() {
               <button
                 onClick={handlePay}
                 disabled={
-                  payAndSendMutation.isPending || 
-                  !address || 
-                  orderStatus?.status === 'refunded' || 
+                  payAndSendMutation.isPending ||
+                  !isConnected ||
+                  orderStatus?.status === 'refunded' ||
                   orderStatus?.status === 'fulfilled' ||
                   (orderStatus?.tx_hash && orderStatus?.status === 'pending')
                 }
                 className={styles.continueButton}
               >
-                {orderStatus?.status === 'refunded' ? (
-                  'Order Refunded'
-                ) : orderStatus?.status === 'fulfilled' ? (
-                  'Order Completed'
-                ) : (orderStatus?.tx_hash && orderStatus?.status === 'pending') ? (
-                  'Processing Airtime...'
-                ) : payAndSendMutation.isPending ? (
-                  'Processing Payment...'
-                ) : !address ? (
-                  'Connect Wallet to Pay'
-                ) : (
-                  'Pay & Send Airtime'
-                )}
+                {payButtonText}
               </button>
 
               {/* Order Status Display */}
