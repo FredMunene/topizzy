@@ -33,10 +33,18 @@ async function processSuccessfulTransaction(orderId: string) {
   }
 }
 
-async function executeRefund(order: any): Promise<string | undefined> {
+type OrderRow = {
+  id: string | number;
+  amount_usdc: number;
+  service_fee_usdc?: number | null;
+  order_ref: string;
+  wallet_address: string;
+}
+
+async function executeRefund(order: OrderRow): Promise<string | undefined> {
   if (!TREASURY_PRIVATE_KEY) {
     console.error('Treasury private key not configured')
-    await markOrderAsRefunded(order.id)
+    await markOrderAsRefunded(String(order.id))
     throw new Error('Manual refund required')
   }
 
@@ -131,7 +139,7 @@ export async function POST(request: NextRequest) {
       await processSuccessfulTransaction(transaction.order_id)
     } else if (status === 'Failed') {
       try {
-        const refundTxHash = await executeRefund(transaction.orders)
+  const refundTxHash = await executeRefund(transaction.orders as unknown as OrderRow)
         // refundTxHash will be undefined if the refund wasn't executed
         await markOrderAsRefunded(transaction.order_id, refundTxHash)
       } catch (refundError) {
