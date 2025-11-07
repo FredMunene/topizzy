@@ -183,6 +183,20 @@ export default function Home() {
     },
   });
 
+  const formatPaymentError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error)
+    if (/user rejected|request rejected|denied transaction/i.test(message)) {
+      return 'Transaction cancelled in your wallet. No funds were taken.'
+    }
+    if (/insufficient funds|insufficient balance/i.test(message)) {
+      return 'Insufficient USDC balance to complete this payment.'
+    }
+    if (/network|timeout|rpc/i.test(message)) {
+      return 'Network error while submitting the transaction. Please try again.'
+    }
+    return 'Payment failed. Please try again in a moment.'
+  }
+
   // Direct smart contract payment
   const payAndSendMutation = useMutation({
     mutationFn: async (order: { orderRef: string; amountKes: number; amountUsdc: number }) => {
@@ -214,6 +228,10 @@ export default function Home() {
       return await response.json();
     },
   });
+
+  const paymentErrorMessage = payAndSendMutation.isError
+    ? formatPaymentError(payAndSendMutation.error)
+    : null;
 
   // Poll order status
   const { data: orderStatus } = useQuery({
@@ -582,9 +600,9 @@ export default function Home() {
                 </div>
               )}
 
-              {payAndSendMutation.isError && (
+              {payAndSendMutation.isError && paymentErrorMessage && (
                 <div className={styles.errorBanner}>
-                  Error: {payAndSendMutation.error?.message}
+                  {paymentErrorMessage}
                 </div>
               )}
 
