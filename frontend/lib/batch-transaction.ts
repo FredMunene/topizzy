@@ -1,5 +1,5 @@
 import { WalletClient, encodeFunctionData } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { base } from 'viem/chains'
 
 interface BatchCall {
   to: `0x${string}`
@@ -13,15 +13,23 @@ export async function executeBatchTransaction(
 ): Promise<`0x${string}`> {
   // Check if wallet supports batch transactions (Safe, etc.)
   if ('sendBatchTransaction' in walletClient) {
-    // @ts-ignore - Safe wallet specific method
-    return await walletClient.sendBatchTransaction({
-      account: walletClient.account!,
-      calls: calls.map(call => ({
-        to: call.to,
-        data: call.data,
-        value: call.value || 0n
-      }))
-    })
+    const safeWallet = walletClient as WalletClient & {
+      sendBatchTransaction?: (args: {
+        account: WalletClient['account']
+        calls: { to: `0x${string}`; data: `0x${string}`; value: bigint }[]
+      }) => Promise<`0x${string}`>
+    }
+
+    if (typeof safeWallet.sendBatchTransaction === 'function') {
+      return await safeWallet.sendBatchTransaction({
+        account: walletClient.account!,
+        calls: calls.map(call => ({
+          to: call.to,
+          data: call.data,
+          value: call.value || 0n
+        }))
+      })
+    }
   }
   
   // Fallback: execute calls sequentially
@@ -29,7 +37,7 @@ export async function executeBatchTransaction(
   for (const call of calls) {
     lastTxHash = await walletClient.sendTransaction({
       account: walletClient.account!,
-      chain: baseSepolia,
+      chain: base,
       to: call.to,
       data: call.data,
       value: call.value || 0n

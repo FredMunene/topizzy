@@ -5,12 +5,11 @@ import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
 import { parseUnits, formatUnits } from 'viem'
-import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 
 import styles from "./page.module.css";
 
-const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_SEPOLIA_ADDRESS! as `0x${string}` // Base Sepolia USDC
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_MAINNET_ADDRESS! as `0x${string}` // Base Mainnet USDC
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 
 const countries = [
@@ -39,7 +38,7 @@ export default function Home() {
     try {
       await ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x14a34' }], // 84532 in hex (Base Sepolia)
+        params: [{ chainId: '0x2105' }], // 8453 in hex (Base Mainnet)
       });
     } catch (error: unknown) {
       // If network doesn't exist, add it
@@ -48,15 +47,15 @@ export default function Home() {
           await ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: '0x14a34',
-              chainName: 'Base Sepolia',
+              chainId: '0x2105',
+              chainName: 'Base Mainnet',
               nativeCurrency: {
                 name: 'Ethereum',
                 symbol: 'ETH',
                 decimals: 18,
               },
-              rpcUrls: ['https://sepolia.base.org'],
-              blockExplorerUrls: ['https://sepolia.basescan.org'],
+              rpcUrls: ['https://mainnet.base.org'],
+              blockExplorerUrls: ['https://basescan.org'],
             }],
           });
         } catch (addError: unknown) {
@@ -205,7 +204,7 @@ export default function Home() {
       const response = await fetch("/api/airtime/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderRef: order.orderRef }),
+        body: JSON.stringify({ orderRef: order.orderRef, txHash }),
       });
       
       if (!response.ok) {

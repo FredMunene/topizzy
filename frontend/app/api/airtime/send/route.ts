@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createPublicClient, http, parseUnits, createWalletClient } from 'viem'
-import { base, baseSepolia } from 'viem/chains'
+import { base } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
 
     // Create public client for blockchain operations
     const publicClient = createPublicClient({
-      chain: baseSepolia,
+      chain: base,
       transport: http()
     })
 

@@ -1,5 +1,5 @@
 import { createPublicClient, http, hexToSignature } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { base } from 'viem/chains';
 
 /**
  * Generates an EIP-2612 permit signature for USDC
@@ -23,7 +23,7 @@ export async function generatePermitSignature({
 }) {
   try {
     const publicClient = createPublicClient({
-      chain: baseSepolia,
+      chain: base,
       transport: http()
     });
 

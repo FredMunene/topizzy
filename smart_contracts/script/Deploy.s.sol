@@ -8,7 +8,7 @@ contract DeployScript is Script {
     function setUp() public {}
 
     function run() public returns (Airtime) {
-        address usdcTokenAddress = vm.envAddress("USDC_SEPOLIA_TOKEN_ADDRESS");
+        address usdcTokenAddress = vm.envAddress("USDC_MAINNET_TOKEN_ADDRESS");
         address treasuryAddress = vm.envAddress("TREASURY_ADDRESS");
         address permit2Address = vm.envAddress("PERMIT2_ADDRESS");
 

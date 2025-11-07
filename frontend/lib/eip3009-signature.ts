@@ -1,6 +1,5 @@
 import { WalletClient } from 'viem'
 import { randomBytes } from 'crypto'
-import { baseSepolia } from 'viem/chains'
 
 interface EIP3009SignatureParams {
   tokenAddress: `0x${string}`
@@ -29,7 +28,7 @@ export async function generateEIP3009Signature({
     const domain = {
       name: 'USD Coin',
       version: '2',
-      chainId: baseSepolia.id,
+      chainId,
       verifyingContract: tokenAddress
     }
 
