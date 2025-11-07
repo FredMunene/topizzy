@@ -1,0 +1,15 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "rpcUrl": "https://sepolia.base.org",
+  "contractAddress": "0xA61C531866AaAd21B0dafDe4C6F28B60A5c134AA",
+  "txHash": "0x6d9e43f9fb65b9ebd89c52b6a3d8fbb64690658f5c86b9cbddbb65ba3909a148",
+  "deployer": "0x6c550478cEd0F3a3451419CEb38d59e885b2178c",
+  "blockNumber": "33285882",
+  "timestamp": "2025-11-05T10:54:11.680Z",
+  "parameters": {
+    "usdcTokenAddress": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "treasuryAddress": "0x6c550478cEd0F3a3451419CEb38d59e885b2178c",
+    "permit2Address": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  }
+}
