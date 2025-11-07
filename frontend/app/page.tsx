@@ -5,6 +5,7 @@ import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
 import { parseUnits, formatUnits, encodeFunctionData } from 'viem'
+import type { Abi } from 'abitype'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
 import styles from "./page.module.css";
@@ -21,7 +22,9 @@ const countries = [
 
 export default function Home() {
   const mini = useMiniKit();
-  const isMiniAppReady = (mini as any)?.isMiniAppReady ?? false;
+  // avoid unused var lint and prefer explicit narrow types
+  const _miniObj = mini as unknown as Record<string, unknown> | undefined;
+  const _isMiniAppReady = Boolean(_miniObj?.isMiniAppReady ?? false);
   const [selectedCountry, setSelectedCountry] = useState(countries[0]);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amountKes, setAmountKes] = useState("");
@@ -33,39 +36,80 @@ export default function Home() {
 
   // Build a unified wallet client that prefers MiniKit's kit when available,
   // otherwise falls back to the wagmi wallet client.
-  const miniKitRuntime = (mini as any)?.kit ?? (mini as any);
-  const unifiedWalletClient: any = (function () {
-    if (miniKitRuntime && (miniKitRuntime.signTypedData || miniKitRuntime.request || miniKitRuntime.writeContract)) {
-      return {
-        // account (sync string or function)
-        account: miniKitRuntime.account ?? (typeof miniKitRuntime.getAccount === 'function' ? miniKitRuntime.getAccount() : undefined),
-        getChainId: async () => {
-          if (typeof miniKitRuntime.getChainId === 'function') return miniKitRuntime.getChainId();
-          if (typeof miniKitRuntime.request === 'function') {
-            const chainHex = await miniKitRuntime.request({ method: 'eth_chainId' });
-            return Number.parseInt(chainHex as string, 16);
-          }
-          return 8453; // fallback to Base
-        },
-        signTypedData: async (params: any) => {
-          if (typeof miniKitRuntime.signTypedData === 'function') return miniKitRuntime.signTypedData(params);
-          // fallback to eth_signTypedData_v4
-          const addr = params.account ?? miniKitRuntime.account;
-          const payload = JSON.stringify({ domain: params.domain, types: params.types, primaryType: params.primaryType, message: params.message });
-          return miniKitRuntime.request({ method: 'eth_signTypedData_v4', params: [addr, payload] });
-        },
-        writeContract: async ({ address, abi, functionName, args }: any) => {
-          if (typeof miniKitRuntime.writeContract === 'function') return miniKitRuntime.writeContract({ address, abi, functionName, args });
-          // encode and send via eth_sendTransaction
-          const data = encodeFunctionData({ abi, functionName, args });
-          return miniKitRuntime.request({ method: 'eth_sendTransaction', params: [{ to: address, data }] });
-        },
-      };
-    }
-    return wagmiWalletClient;
+  // Narrow runtime shape and avoid explicit `any`
+  type SignTypedDataParams = { account?: string; domain?: unknown; types?: unknown; primaryType?: string; message?: unknown };
+  type WriteContractArgs = { address: string; abi: Abi | readonly unknown[]; functionName: string; args?: readonly unknown[] };
+  type UnifiedWalletClient = {
+    account?: string | (() => string | Promise<string>);
+    getChainId?: () => Promise<number>;
+    signTypedData?: (params: SignTypedDataParams) => Promise<string>;
+    request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+    writeContract?: (args: WriteContractArgs) => Promise<unknown>;
+  } | undefined;
+
+  const miniKitRuntime = ((_miniObj?.kit ?? _miniObj) as unknown) as Record<string, unknown> | undefined;
+
+  const unifiedWalletClient: UnifiedWalletClient = (function () {
+    if (!miniKitRuntime) return wagmiWalletClient as unknown as UnifiedWalletClient;
+
+    const runtime = miniKitRuntime as unknown as {
+      signTypedData?: (params: SignTypedDataParams) => Promise<string>;
+      request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      writeContract?: (args: WriteContractArgs) => Promise<unknown>;
+      getAccount?: () => string | Promise<string>;
+      getChainId?: () => Promise<number> | number;
+      account?: string;
+    };
+
+    const hasApi = typeof runtime.signTypedData === 'function' || typeof runtime.request === 'function' || typeof runtime.writeContract === 'function';
+    if (!hasApi) return wagmiWalletClient as unknown as UnifiedWalletClient;
+
+    // Helper to ensure addresses are 0x-prefixed and properly typed
+    const normalizeAddress = (addr: string | undefined): `0x${string}` | undefined => {
+      if (!addr) return undefined;
+      const prefixed = addr.startsWith('0x') ? addr : `0x${addr}`;
+      return prefixed.toLowerCase() as `0x${string}`;
+    };
+
+    // Extract and normalize account
+    const runtimeAccount = runtime.account ?? (typeof runtime.getAccount === 'function' ? runtime.getAccount() : undefined);
+    const normalizedAccount = typeof runtimeAccount === 'string' ? normalizeAddress(runtimeAccount) : runtimeAccount;
+
+    return {
+      account: normalizedAccount,
+      getChainId: async () => {
+        if (typeof runtime.getChainId === 'function') return await runtime.getChainId();
+        if (typeof runtime.request === 'function') {
+          const chainHex = (await runtime.request({ method: 'eth_chainId' })) as string;
+          return Number.parseInt(chainHex, 16);
+        }
+        return 8453;
+      },
+      signTypedData: async (params: SignTypedDataParams) => {
+        if (typeof runtime.signTypedData === 'function') return await runtime.signTypedData(params);
+        const addr = normalizeAddress(params.account ?? runtime.account);
+        const payload = JSON.stringify({ domain: params.domain, types: params.types, primaryType: params.primaryType, message: params.message });
+        if (typeof runtime.request !== 'function') throw new Error('Runtime does not support request fallback');
+        return (await runtime.request({ method: 'eth_signTypedData_v4', params: [addr, payload] })) as string;
+      },
+      writeContract: async ({ address, abi, functionName, args }: WriteContractArgs) => {
+        if (typeof runtime.writeContract === 'function') return await runtime.writeContract({ address, abi, functionName, args });
+        if (typeof runtime.request !== 'function') throw new Error('Runtime does not support request fallback');
+        const data = encodeFunctionData({ abi: abi as Abi, functionName, args: args as unknown as readonly unknown[] });
+        return (await runtime.request({ method: 'eth_sendTransaction', params: [{ to: address, data }] })) as unknown;
+      },
+    } as UnifiedWalletClient;
   })();
 
-  const effectiveAddress = (unifiedWalletClient && (unifiedWalletClient.account ?? wagmiAddress)) ?? wagmiAddress;
+  const effectiveAddress = (() => {
+    const addr = (unifiedWalletClient && (unifiedWalletClient.account ?? wagmiAddress)) ?? wagmiAddress;
+    if (!addr) return undefined;
+    if (typeof addr === 'string') {
+      const prefixed = addr.startsWith('0x') ? addr : `0x${addr}`;
+      return prefixed.toLowerCase() as `0x${string}`;
+    }
+    return undefined;
+  })();
 
   // Switch to Base Mainnet
   const switchToBaseMainnet = async () => {
@@ -133,8 +177,9 @@ export default function Home() {
   const currentCurrency = currencyMap[phoneCountryCode] || "KES";
 
   useEffect(() => {
-    if (!(mini as any)?.isMiniAppReady) {
-      (mini as any)?.setMiniAppReady?.();
+    if (!_isMiniAppReady) {
+      const maybe = _miniObj as unknown as { setMiniAppReady?: () => void } | undefined;
+      maybe?.setMiniAppReady?.();
     }
   }, [mini]);
 
@@ -235,14 +280,30 @@ export default function Home() {
         const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour
         const amountWei = parseUnits(order.amountUsdc.toString(), 6); // USDC has 6 decimals
         
+        // Ensure the connected wallet supports typed data signing
+        if (!unifiedWalletClient || typeof unifiedWalletClient.signTypedData !== 'function') {
+          throw new Error('Connected wallet does not support EIP-712 signing');
+        }
+
+        // Adapter to satisfy the strict walletClient.signTypedData type expected by generatePermitSignature
+        const signingClient: { signTypedData: (params: { account: `0x${string}`; domain: Record<string, unknown>; types: Record<string, unknown>; primaryType: string; message: Record<string, unknown>; }) => Promise<string>; } = {
+          signTypedData: async (params) => {
+            const accountParam = (params.account ?? effectiveAddress) as `0x${string}`;
+            // Delegate to unifiedWalletClient.signTypedData which accepts a looser param shape
+            return await (unifiedWalletClient.signTypedData as (p: SignTypedDataParams) => Promise<string>)(
+              { ...params, account: accountParam } as unknown as SignTypedDataParams
+            );
+          }
+        };
+
         // Generate permit signature
         const permitSig = await generatePermitSignature({
           tokenAddress: USDC_ADDRESS,
-          owner: effectiveAddress,
+          owner: effectiveAddress as `0x${string}`,
           spender: AIRTIME_CONTRACT_ADDRESS,
           value: amountWei,
           deadline,
-          walletClient: unifiedWalletClient,
+          walletClient: signingClient,
           chainId: (await unifiedWalletClient.getChainId?.()) ?? 8453 // use wallet chainId when available
         });
         
@@ -250,6 +311,10 @@ export default function Home() {
         if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
         
         // Call smart contract (token address now stored in contract)
+        if (typeof unifiedWalletClient.writeContract !== 'function') {
+          throw new Error('Connected wallet cannot send transactions');
+        }
+
         const txHash = await unifiedWalletClient.writeContract({
           address: AIRTIME_CONTRACT_ADDRESS,
           abi: AIRTIME_ABI,
