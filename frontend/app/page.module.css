@@ -1,30 +1,35 @@
 .container {
-  display: grid;
-  grid-template-rows: auto 1fr;
   min-height: 100vh;
-  background-color: #f5f5f5;
+  background-color: #f9fafb;
+  position: relative;
+  padding: 1rem;
 }
 
 .headerWrapper {
-  display: flex;
-  justify-content: flex-end;
-  padding: 1rem;
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10;
 }
 
 .content {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 2rem 1rem;
+  min-height: 100vh;
+  padding-top: 2rem;
+}
+
+.content > .card {
+  width: 100%;
+  max-width: 24rem;
 }
 
 .card {
-  background: white;
+  background: #ffffff;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 420px;
   overflow: hidden;
 }
 
@@ -47,8 +52,12 @@
   padding: 1.5rem;
 }
 
+.cardBody > * + * {
+  margin-top: 1rem;
+}
+
 .formGroup {
-  margin-bottom: 1.5rem;
+  width: 100%;
 }
 
 .label {
@@ -63,10 +72,11 @@
   display: flex;
   gap: 0.5rem;
   position: relative;
+  width: 100%;
 }
 
 .phoneInputWithFlag {
-  flex: 0 0 180px;
+  flex: 1;
   position: relative;
   display: flex;
   align-items: center;
@@ -108,7 +118,7 @@
 }
 
 .phoneInput {
-  flex: 1;
+  width: 100%;
   padding: 0.75rem 1rem 0.75rem 2.5rem;
   border: 1px solid #d1d1d1;
   border-radius: 8px;
@@ -170,9 +180,11 @@
   display: flex;
   gap: 0.5rem;
   position: relative;
+  width: 100%;
 }
 
 .amountInput {
+  width: 100%;
   flex: 1;
   padding: 0.75rem 1rem;
   border: 1px solid #d1d1d1;
@@ -428,17 +440,8 @@
 }
 
 /* Responsive */
-@media (max-width: 480px) {
-  .card {
-    border-radius: 0;
-    max-width: 100%;
-  }
-
-  .cardBody {
-    padding: 1rem;
-  }
-
-  .content {
-    padding: 0;
+@media (max-width: 430px) {
+  .container {
+    padding: 2rem 1rem;
   }
 }

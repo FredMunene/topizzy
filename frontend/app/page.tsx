@@ -7,9 +7,10 @@ import { useAccount, useWalletClient, useBalance } from 'wagmi'
 import { parseUnits, formatUnits } from 'viem'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
+
 import styles from "./page.module.css";
 
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}` // Base Mainnet USDC
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_SEPOLIA_ADDRESS! as `0x${string}` // Base Sepolia USDC
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 
 const countries = [
@@ -38,7 +39,7 @@ export default function Home() {
     try {
       await ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x2105' }], // 8453 in hex
+        params: [{ chainId: '0x14a34' }], // 84532 in hex (Base Sepolia)
       });
     } catch (error: unknown) {
       // If network doesn't exist, add it
@@ -47,15 +48,15 @@ export default function Home() {
           await ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: '0x2105',
-              chainName: 'Base Mainnet',
+              chainId: '0x14a34',
+              chainName: 'Base Sepolia',
               nativeCurrency: {
                 name: 'Ethereum',
                 symbol: 'ETH',
                 decimals: 18,
               },
-              rpcUrls: ['https://mainnet.base.org'],
-              blockExplorerUrls: ['https://basescan.org'],
+              rpcUrls: ['https://sepolia.base.org'],
+              blockExplorerUrls: ['https://sepolia.basescan.org'],
             }],
           });
         } catch (addError: unknown) {
@@ -183,83 +184,35 @@ export default function Home() {
     },
   });
 
-  // Pay with permit and send airtime
+  // Direct smart contract payment
   const payAndSendMutation = useMutation({
     mutationFn: async (order: { orderRef: string; amountKes: number; amountUsdc: number }) => {
-      try {
-        if (!address) {
-          throw new Error('Please connect your wallet first');
-        }
-        
-        if (!walletClient) {
-          throw new Error('Unable to access wallet. Please refresh the page and try again');
-        }
-        
-        const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-        const amountWei = parseUnits(order.amountUsdc.toString(), 6); // USDC has 6 decimals
-        
-        // Generate permit signature
-        const permitSig = await generatePermitSignature({
-          tokenAddress: USDC_ADDRESS,
-          owner: address,
-          spender: AIRTIME_CONTRACT_ADDRESS,
-          value: amountWei,
-          deadline,
-          walletClient,
-          chainId: (await walletClient.getChainId?.()) ?? 8453 // use wallet chainId when available
-        });
-        
-        if (permitSig.error) throw new Error(permitSig.error);
-        if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
-        
-        // Call smart contract (token address now stored in contract)
-        const txHash = await walletClient.writeContract({
-          address: AIRTIME_CONTRACT_ADDRESS,
-          abi: AIRTIME_ABI,
-          functionName: 'depositWithPermit',
-          args: [
-            order.orderRef,
-            amountWei,
-            BigInt(deadline),
-            permitSig.v,
-            permitSig.r,
-            permitSig.s
-          ]
-        });
-        
-        // Now send airtime
-        const airtimeResponse = await fetch("/api/airtime/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            orderRef: order.orderRef,
-            txHash 
-          }),
-        });
-        
-        if (!airtimeResponse.ok) {
-          // const errorText = await airtimeResponse.text();
-          throw new Error(`Airtime service error: ${airtimeResponse.status}`);
-        }
-        
-        const result = await airtimeResponse.json();
-        return result;
-      } catch (error: unknown) {
-        // Transform technical errors into user-friendly messages
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
-          throw new Error('Transaction cancelled. Please try again when ready to complete the payment.');
-        }
-        if (errorMessage.includes('insufficient funds')) {
-          throw new Error('Insufficient USDC balance. Please add more USDC to your wallet.');
-        }
-        if (errorMessage.includes('network')) {
-          throw new Error('Network error. Please check your connection and try again.');
-        }
-        // Re-throw the original error if it's already user-friendly
-        throw error instanceof Error ? error : new Error(String(error));
+      if (!address || !walletClient) {
+        throw new Error('Please connect your wallet first');
       }
+      
+      const amountWei = parseUnits(order.amountUsdc.toString(), 6);
+      
+      // Call smart contract deposit function
+      const txHash = await walletClient.writeContract({
+        address: AIRTIME_CONTRACT_ADDRESS,
+        abi: AIRTIME_ABI,
+        functionName: 'approveAndDeposit',
+        args: [order.orderRef, amountWei],
+      });
+      
+      // Send airtime request to backend
+      const response = await fetch("/api/airtime/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderRef: order.orderRef }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to send airtime');
+      }
+      
+      return await response.json();
     },
   });
 
@@ -327,6 +280,11 @@ export default function Home() {
     
     if (!address) {
       setValidationError("Please connect your wallet first");
+      return;
+    }
+    
+    if (!walletClient) {
+      setValidationError("Wallet client not ready. Please try again.");
       return;
     }
     
@@ -559,6 +517,7 @@ export default function Home() {
                 disabled={
                   payAndSendMutation.isPending || 
                   !address || 
+                  !walletClient ||
                   orderStatus?.status === 'refunded' || 
                   orderStatus?.status === 'fulfilled' ||
                   (orderStatus?.tx_hash && orderStatus?.status === 'pending')
@@ -575,6 +534,8 @@ export default function Home() {
                   'Processing Payment...'
                 ) : !address ? (
                   'Connect Wallet to Pay'
+                ) : !walletClient ? (
+                  'Wallet Loading...'
                 ) : (
                   'Pay & Send Airtime'
                 )}

@@ -1,19 +1,45 @@
 export const AIRTIME_ABI = [
   {
     "type": "constructor",
-    "inputs": [],
+    "inputs": [
+      {"name": "_ERC20TokenAddress", "type": "address", "internalType": "address"},
+      {"name": "_treasury", "type": "address", "internalType": "address"}
+    ],
     "stateMutability": "nonpayable"
   },
   {
     "type": "function",
-    "name": "depositWithPermit",
+    "name": "approveAndDeposit",
     "inputs": [
       {"name": "depositRef", "type": "string", "internalType": "string"},
+      {"name": "amount", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [{"name": "depositId", "type": "uint256", "internalType": "uint256"}],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "depositWithAuthorization",
+    "inputs": [
+      {"name": "depositRef", "type": "string", "internalType": "string"},
+      {"name": "from", "type": "address", "internalType": "address"},
       {"name": "amount", "type": "uint256", "internalType": "uint256"},
-      {"name": "deadline", "type": "uint256", "internalType": "uint256"},
+      {"name": "validAfter", "type": "uint256", "internalType": "uint256"},
+      {"name": "validBefore", "type": "uint256", "internalType": "uint256"},
+      {"name": "nonce", "type": "bytes32", "internalType": "bytes32"},
       {"name": "v", "type": "uint8", "internalType": "uint8"},
       {"name": "r", "type": "bytes32", "internalType": "bytes32"},
       {"name": "s", "type": "bytes32", "internalType": "bytes32"}
+    ],
+    "outputs": [{"name": "depositId", "type": "uint256", "internalType": "uint256"}],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deposit",
+    "inputs": [
+      {"name": "depositRef", "type": "string", "internalType": "string"},
+      {"name": "amount", "type": "uint256", "internalType": "uint256"}
     ],
     "outputs": [{"name": "depositId", "type": "uint256", "internalType": "uint256"}],
     "stateMutability": "nonpayable"
@@ -88,5 +114,15 @@ export const AIRTIME_ABI = [
       {"name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256"}
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [{"name": "token", "type": "address", "internalType": "address"}]
   }
 ] as const
