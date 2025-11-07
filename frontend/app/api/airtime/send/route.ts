@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createPublicClient, http, parseUnits, createWalletClient } from 'viem'
-import { base } from 'viem/chains'
+import { base, baseSepolia } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
+
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,23 +27,22 @@ const AFRICASTALKING_URL = process.env.NEXT_AFRICASTALKING_URL!
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY as `0x${string}`
 
+
+
 export async function POST(request: NextRequest) {
   try {
+    console.log('[Airtime-API] Processing airtime send request')
     const body = await request.json()
-    console.log('Request body:', body)
+    const orderRef: string = body.orderRef
+    const txHash: string | undefined = body.txHash
     
-    const { orderRef, txHash } = body
+    console.log('[Airtime-API] Processing order:', orderRef, 'with txHash:', txHash ? 'present' : 'none')
 
     if (!orderRef) {
       console.log('ERROR: Missing orderRef')
       return NextResponse.json({ error: 'Missing orderRef' }, { status: 400 })
     }
 
-    if (!txHash) {
-      console.log('ERROR: Missing transaction hash')
-      return NextResponse.json({ error: 'Missing transaction hash' }, { status: 400 })
-    }
-    
     console.log('Processing order:', orderRef, 'with txHash:', txHash)
 
     // Get order
@@ -93,50 +93,56 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Verify blockchain transaction
+    // Create public client for blockchain operations
     const publicClient = createPublicClient({
-      chain: base,
+      chain: baseSepolia,
       transport: http()
     })
 
-    try {
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash: txHash as `0x${string}`,
-        confirmations: 1
-      })
+    // Verify blockchain transaction if txHash is provided
+    if (txHash) {
 
-      if (receipt.status !== 'success') {
-        return NextResponse.json({ error: 'Transaction failed on blockchain' }, { status: 400 })
-      }
+      try {
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash as `0x${string}`,
+          confirmations: 1
+        })
 
-      // Verify the transaction was to our contract
-      if (receipt.to?.toLowerCase() !== AIRTIME_CONTRACT_ADDRESS.toLowerCase()) {
-        return NextResponse.json({ error: 'Transaction not to Airtime contract' }, { status: 400 })
-      }
-
-      // Parse logs to verify OrderPaid event and amount
-      const orderPaidEvent = receipt.logs.find(log => {
-        try {
-          // Check if log is from our contract
-          return log.address.toLowerCase() === AIRTIME_CONTRACT_ADDRESS.toLowerCase()
-        } catch {
-          return false
+        if (receipt.status !== 'success') {
+          return NextResponse.json({ error: 'Transaction failed on blockchain' }, { status: 400 })
         }
-      })
 
-      if (!orderPaidEvent) {
-        return NextResponse.json({ error: 'OrderPaid event not found in transaction' }, { status: 400 })
+        // Verify the transaction was to our contract
+        if (receipt.to?.toLowerCase() !== AIRTIME_CONTRACT_ADDRESS.toLowerCase()) {
+          return NextResponse.json({ error: 'Transaction not to Airtime contract' }, { status: 400 })
+        }
+
+        // Parse logs to verify OrderPaid event and amount
+        const orderPaidEvent = receipt.logs.find(log => {
+          try {
+            // Check if log is from our contract
+            return log.address.toLowerCase() === AIRTIME_CONTRACT_ADDRESS.toLowerCase()
+          } catch {
+            return false
+          }
+        })
+
+        if (!orderPaidEvent) {
+          return NextResponse.json({ error: 'OrderPaid event not found in transaction' }, { status: 400 })
+        }
+      } catch (verifyError) {
+        console.error('Transaction verification failed:', verifyError)
+        return NextResponse.json({ error: 'Could not verify transaction' }, { status: 400 })
       }
-    } catch (verifyError) {
-      console.error('Transaction verification failed:', verifyError)
-      return NextResponse.json({ error: 'Could not verify transaction' }, { status: 400 })
     }
 
-    // Save tx_hash BEFORE attempting airtime send (maintains audit trail)
-    await supabase
-      .from('orders')
-      .update({ tx_hash: txHash })
-      .eq('id', order.id)
+    // Save tx_hash if provided (maintains audit trail)
+    if (txHash) {
+      await supabase
+        .from('orders')
+        .update({ tx_hash: txHash })
+        .eq('id', order.id)
+    }
 
 
     // Use order currency or default to KES
@@ -197,7 +203,7 @@ export async function POST(request: NextRequest) {
     if (response.ok && result.responses?.[0]?.status === 'Sent') {
       // Airtime request accepted - keep order as pending until callback confirms delivery
       const requestId = result.responses[0].requestId
-      console.log('Airtime request accepted, requestId:', requestId)
+      console.log('[Airtime-API] Airtime request accepted, requestId:', requestId)
 
       // Insert airtime transaction (order stays pending)
       console.log('Inserting airtime transaction with requestId:', requestId)
@@ -223,7 +229,7 @@ export async function POST(request: NextRequest) {
       // Failed - execute actual refund via smart contract
       const errorMessage = result.responses?.[0]?.errorMessage || result.errorMessage || 'Unknown error'
       const requestId = result.responses?.[0]?.requestId
-      console.log('Airtime request failed:', errorMessage, 'requestId:', requestId)
+      console.log('[Airtime-API] Airtime request failed:', errorMessage, 'requestId:', requestId)
 
       // Insert airtime transaction record
       console.log('Inserting failed airtime transaction with requestId:', requestId)
