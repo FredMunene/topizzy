@@ -18,20 +18,108 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   }
 })
 
+// Helper functions to reduce cognitive complexity
+async function processSuccessfulTransaction(orderId: string) {
+  const { error: orderUpdateError } = await supabase
+    .from('orders')
+    .update({
+      status: 'fulfilled',
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', orderId)
+
+  if (orderUpdateError) {
+    console.error('Failed to update order to fulfilled:', orderUpdateError)
+  }
+}
+
+type OrderRow = {
+  id: string | number;
+  amount_usdc: number;
+  service_fee_usdc?: number | null;
+  order_ref: string;
+  wallet_address: string;
+}
+
+async function executeRefund(order: OrderRow): Promise<string | undefined> {
+  if (!TREASURY_PRIVATE_KEY) {
+    console.error('Treasury private key not configured')
+    await markOrderAsRefunded(String(order.id))
+    throw new Error('Manual refund required')
+  }
+
+  const privateKey = TREASURY_PRIVATE_KEY.startsWith('0x') ? TREASURY_PRIVATE_KEY : `0x${TREASURY_PRIVATE_KEY}`
+  const account = privateKeyToAccount(privateKey as `0x${string}`)
+  const walletClient = createWalletClient({
+    account,
+    chain: base,
+    transport: http()
+  })
+
+  const publicClient = createPublicClient({
+    chain: base,
+    transport: http()
+  })
+
+  // Refund only airtime cost, keep service fee
+  const refundAmount = order.amount_usdc - (order.service_fee_usdc || 0)
+  const amountWei = parseUnits(refundAmount.toString(), 6)
+  const refundTxHash = await walletClient.writeContract({
+    address: AIRTIME_CONTRACT_ADDRESS,
+    abi: AIRTIME_ABI,
+    functionName: 'refund',
+    args: [
+      order.order_ref,
+      order.wallet_address as `0x${string}`,
+      amountWei
+    ]
+  })
+
+  await publicClient.waitForTransactionReceipt({
+    hash: refundTxHash,
+    confirmations: 1
+  })
+
+  return refundTxHash || undefined
+}
+
+async function markOrderAsRefunded(orderId: string, txHash?: string) {
+  const updateData = {
+    status: 'refunded',
+    updated_at: new Date().toISOString(),
+    ...(txHash && { refund_tx_hash: txHash })
+  }
+
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update(updateData)
+    .eq('id', orderId)
+
+  if (updateError) {
+    console.error('Failed to update order refund status:', updateError)
+  }
+}
+
+async function updateTransactionStatus(transactionId: string, status: string) {
+  const { error: updateError } = await supabase
+    .from('airtime_transactions')
+    .update({
+      provider_status: status,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', transactionId)
+
+  if (updateError) {
+    console.error('Failed to update transaction:', updateError)
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    // AfricasTalking sends form-encoded data, not JSON
     const formData = await request.formData()
-    
-    // Extract form fields
     const requestId = formData.get('requestId') as string
     const status = formData.get('status') as string
-    const _phoneNumber = formData.get('phoneNumber') as string
-    const _value = formData.get('value') as string
-    const _description = formData.get('description') as string
-    
 
-    
     // Find airtime transaction
     const { data: transaction, error: txError } = await supabase
       .from('airtime_transactions')
@@ -44,97 +132,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Update transaction status
-    const { error: updateError } = await supabase
-      .from('airtime_transactions')
-      .update({
-        provider_status: status,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', transaction.id)
+    await updateTransactionStatus(transaction.id, status)
 
-    if (updateError) {
-      console.error('Failed to update transaction:', updateError)
-    }
-
-    // Update order status based on final delivery status
+    // Process based on status
     if (status === 'Success') {
-      const { error: orderUpdateError } = await supabase
-        .from('orders')
-        .update({
-          status: 'fulfilled',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', transaction.order_id)
-
-      if (orderUpdateError) {
-        console.error('Failed to update order to fulfilled:', orderUpdateError)
-      }
+      await processSuccessfulTransaction(transaction.order_id)
     } else if (status === 'Failed') {
-      
       try {
-        if (!TREASURY_PRIVATE_KEY) {
-          console.error('Treasury private key not configured')
-          await supabase
-            .from('orders')
-            .update({ status: 'refunded' })
-            .eq('id', transaction.order_id)
-          return NextResponse.json({ error: 'Manual refund required' }, { status: 500 })
-        }
-
-        // Ensure private key has 0x prefix
-        const privateKey = TREASURY_PRIVATE_KEY.startsWith('0x') ? TREASURY_PRIVATE_KEY : `0x${TREASURY_PRIVATE_KEY}`
-        const account = privateKeyToAccount(privateKey as `0x${string}`)
-        const walletClient = createWalletClient({
-          account,
-          chain: base,
-          transport: http()
-        })
-
-        const publicClient = createPublicClient({
-          chain: base,
-          transport: http()
-        })
-
-        const order = transaction.orders
-        // Refund only airtime cost, keep service fee
-        const refundAmount = order.amount_usdc - (order.service_fee_usdc || 0)
-        const amountWei = parseUnits(refundAmount.toString(), 6)
-        const refundTxHash = await walletClient.writeContract({
-          address: AIRTIME_CONTRACT_ADDRESS,
-          abi: AIRTIME_ABI,
-          functionName: 'refund',
-          args: [
-            order.order_ref,
-            order.wallet_address as `0x${string}`,
-            amountWei
-          ]
-        })
-
-        // Wait for refund transaction
-        await publicClient.waitForTransactionReceipt({
-          hash: refundTxHash,
-          confirmations: 1
-        })
-
-        // Update order with refund status and refund tx hash
-        const { error: updateError } = await supabase
-          .from('orders')
-          .update({ 
-            status: 'refunded',
-            refund_tx_hash: refundTxHash,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', transaction.order_id)
-        
-        if (updateError) {
-          console.error('Failed to update order with refund tx hash:', updateError)
-        }
+  const refundTxHash = await executeRefund(transaction.orders as unknown as OrderRow)
+        // refundTxHash will be undefined if the refund wasn't executed
+        await markOrderAsRefunded(transaction.order_id, refundTxHash)
       } catch (refundError) {
         console.error('Refund execution failed:', refundError)
-        await supabase
-          .from('orders')
-          .update({ status: 'refunded' })
-          .eq('id', transaction.order_id)
+        await markOrderAsRefunded(transaction.order_id)
+        if (refundError instanceof Error && refundError.message === 'Manual refund required') {
+          return NextResponse.json({ error: 'Manual refund required' }, { status: 500 })
+        }
       }
     }
 
