@@ -5,6 +5,7 @@ import { Transaction, TransactionButton, TransactionToast, type Call } from "@co
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
+import { useCapabilities } from 'wagmi/experimental'
 import { parseUnits, formatUnits, encodeFunctionData, erc20Abi } from 'viem'
 import type { Abi } from 'abitype'
 import { generatePermitSignature } from '@/lib/permit-signature'
@@ -34,7 +35,12 @@ export default function Home() {
   const [shouldPoll, setShouldPoll] = useState(true);
   const { address: wagmiAddress, chain } = useAccount();
   const { data: wagmiWalletClient } = useWalletClient();
-  const isSmartWallet = useIsWalletACoinbaseSmartWallet();
+  const { data: walletCapabilities } = useCapabilities({ chainId: 8453 });
+  const coinbaseSmartWallet = useIsWalletACoinbaseSmartWallet();
+  const isSmartWallet = Boolean(
+    coinbaseSmartWallet ||
+    (walletCapabilities as { atomicBatch?: { supported?: boolean } } | undefined)?.atomicBatch?.supported
+  );
 
   // Build a unified wallet client that prefers MiniKit's kit when available,
   // otherwise falls back to the wagmi wallet client.
@@ -322,6 +328,9 @@ export default function Home() {
   const payAndSendMutation = useMutation({
     mutationFn: async (order: { orderRef: string; amountKes: number; amountUsdc: number }) => {
       try {
+        if (isSmartWallet) {
+          throw new Error('Smart wallet detected. Please use the smart wallet payment button.');
+        }
         if (!effectiveAddress) {
           throw new Error('Please connect your wallet first');
         }

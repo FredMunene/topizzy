@@ -109,12 +109,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Transaction failed on blockchain' }, { status: 400 })
       }
 
-      // Verify the transaction was to our contract
-      if (receipt.to?.toLowerCase() !== AIRTIME_CONTRACT_ADDRESS.toLowerCase()) {
-        return NextResponse.json({ error: 'Transaction not to Airtime contract' }, { status: 400 })
-      }
-
-      // Parse logs to verify OrderPaid event and amount
+      // Parse logs to verify OrderPaid event and amount (works for direct calls and batched/smart-wallet relays)
       const orderPaidEvent = receipt.logs.find(log => {
         try {
           // Check if log is from our contract
