@@ -25,12 +25,28 @@
   max-width: 24rem;
 }
 
+.content > .firstStepCard {
+  max-width: 21rem;
+}
+
 .card {
   background: #ffffff;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   width: 100%;
   overflow: hidden;
+}
+
+.firstStepCard {
+  font-size: 0.92rem;
+}
+
+.firstStepCard .cardHeader {
+  padding: 1rem 1.25rem;
+}
+
+.firstStepCard .cardTitle {
+  font-size: 1.1rem;
 }
 
 .cardHeader {
@@ -56,6 +72,14 @@
   margin-top: 1rem;
 }
 
+.firstStepCard .cardBody {
+  padding: 1.25rem;
+}
+
+.firstStepCard .cardBody > * + * {
+  margin-top: 0.75rem;
+}
+
 .formGroup {
   width: 100%;
 }
@@ -66,6 +90,11 @@
   font-weight: 500;
   color: #4a4a4a;
   margin-bottom: 0.5rem;
+}
+
+.firstStepCard .label {
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
 }
 
 .phoneInputWrapper {
@@ -90,6 +119,11 @@
   pointer-events: none;
 }
 
+.firstStepCard .flagIcon {
+  left: 0.5rem;
+  font-size: 1rem;
+}
+
 .countrySelect {
   padding: 0.75rem 1rem;
   background: #ffffff !important;
@@ -104,6 +138,12 @@
   color: #000000 !important;
   opacity: 1 !important;
   -webkit-text-fill-color: #000000 !important;
+}
+
+.firstStepCard .countrySelect {
+  min-width: 80px;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
 }
 
 .countrySelect:hover {
@@ -134,6 +174,11 @@
   appearance: none !important;
 }
 
+.firstStepCard .phoneInput {
+  padding: 0.65rem 0.75rem 0.65rem 2rem;
+  font-size: 0.95rem;
+}
+
 .phoneInput:focus {
   border-color: #5c9c92;
   box-shadow: 0 0 0 3px rgba(92, 156, 146, 0.1);
@@ -156,6 +201,11 @@
   -webkit-text-fill-color: #000000 !important;
 }
 
+.firstStepCard .countryButton {
+  padding: 0.6rem 0.85rem;
+  font-size: 0.85rem;
+}
+
 .countryButton:hover {
   background: #f5f5f5;
   border-color: #101a18;
@@ -168,6 +218,10 @@
   font-size: 0.8125rem;
   color: #0066cc;
   margin-top: 0.5rem;
+}
+
+.firstStepCard .helperText {
+  font-size: 0.75rem;
 }
 
 .infoIcon {

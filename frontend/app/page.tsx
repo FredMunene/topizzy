@@ -324,7 +324,7 @@ export default function Home() {
 
       <div className={styles.content}>
         {!order ? (
-          <div className={styles.card}>
+          <div className={`${styles.card} ${styles.firstStepCard}`}>
             <div className={styles.cardHeader}>
               <h1 className={styles.cardTitle}>Buy Airtime</h1>
             </div>

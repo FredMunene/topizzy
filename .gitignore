@@ -5,3 +5,8 @@ videos/
 ethnile.jpeg
 image.png
 
+smart-contracts/artifacts/
+smart-contracts/cache/
+smart-contracts/lib/
+
+
