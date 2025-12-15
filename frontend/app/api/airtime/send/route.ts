@@ -24,7 +24,16 @@ const AFRICASTALKING_USERNAME = process.env.NEXT_AFRICASTALKING_USERNAME!
 const AFRICASTALKING_API_KEY = process.env.NEXT_AFRICASTALKING_API_KEY!
 const AFRICASTALKING_URL = process.env.NEXT_AFRICASTALKING_URL!
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
-const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY as `0x${string}`
+const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY
+
+function normalizePrivateKey(pk?: string | null): `0x${string}` | null {
+  if (!pk) return null;
+  const trimmed = pk.trim().startsWith('0x') ? pk.trim() : `0x${pk.trim()}`
+  if (!/^0x[0-9a-fA-F]{64}$/.test(trimmed)) {
+    return null
+  }
+  return trimmed as `0x${string}`
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -91,6 +100,25 @@ export async function POST(request: NextRequest) {
         status: order.status,
         message: `Order status is ${order.status}. Only pending orders can be processed.`
       }, { status: 400 })
+    }
+
+    // Short-circuit if we've already attempted an airtime send for this order in the last 5 minutes
+    const { data: recentTx, error: recentTxError } = await supabase
+      .from('airtime_transactions')
+      .select('created_at, error_message, provider_status')
+      .eq('order_id', order.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (!recentTxError && recentTx?.length) {
+      const createdAt = new Date(recentTx[0].created_at)
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
+      if (createdAt > fiveMinutesAgo) {
+        return NextResponse.json({
+          error: 'Airtime already attempted recently. Please wait 5 minutes or create a new order if this continues.',
+          status: order.status,
+        }, { status: 429 })
+      }
     }
 
     // Verify blockchain transaction
@@ -215,10 +243,33 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ success: true, requestId })
     } else {
+      // If we previously sent airtime successfully, do not refund on a duplicate/follow-up failure
+      const { data: priorTxs } = await supabase
+        .from('airtime_transactions')
+        .select('provider_status')
+        .eq('order_id', order.id)
+        .in('provider_status', ['Sent', 'Success'])
+        .limit(1)
+
+      if (priorTxs && priorTxs.length > 0) {
+        return NextResponse.json({
+          error: 'Airtime already sent for this order. No refund issued.',
+          status: 'fulfilled'
+        }, { status: 409 })
+      }
+
       // Failed - execute actual refund via smart contract
       const errorMessage = result.responses?.[0]?.errorMessage || result.errorMessage || 'Unknown error'
       const requestId = result.responses?.[0]?.requestId
       console.log('Airtime request failed:', errorMessage, 'requestId:', requestId)
+
+      // Handle AT duplicate throttling explicitly without trying to refund
+      if (errorMessage.toLowerCase().includes('duplicate request')) {
+        return NextResponse.json({
+          error: 'A duplicate airtime request was received within the last 5 minutes. Please wait and try again or create a new order.',
+          status: 'duplicate'
+        }, { status: 409 })
+      }
 
       // Insert airtime transaction record
       console.log('Inserting failed airtime transaction with requestId:', requestId)
@@ -242,17 +293,17 @@ export async function POST(request: NextRequest) {
 
       // Execute refund on blockchain
       try {
-        if (!TREASURY_PRIVATE_KEY) {
-          console.error('REFUND DEBUG: Treasury private key not configured')
-          // Update order to refunded status (manual refund required)
+        const normalizedPk = normalizePrivateKey(TREASURY_PRIVATE_KEY)
+        if (!normalizedPk) {
+          console.error('REFUND DEBUG: Treasury private key not configured or invalid')
           await supabase
             .from('orders')
-            .update({ status: 'refunded' })
+            .update({ status: 'refund_failed' })
             .eq('id', order.id)
-          return NextResponse.json({ error: 'Airtime send failed, manual refund required', details: errorMessage }, { status: 500 })
+          return NextResponse.json({ error: 'Airtime send failed. Please contact support with your order reference.' }, { status: 500 })
         }
 
-        const account = privateKeyToAccount(TREASURY_PRIVATE_KEY)
+        const account = privateKeyToAccount(normalizedPk)
         const walletClient = createWalletClient({
           account,
           chain: base,
@@ -299,10 +350,9 @@ export async function POST(request: NextRequest) {
         }, { status: 500 })
       } catch (refundError) {
         console.error('Refund execution failed:', refundError)
-        // Update order to refunded status (but refund failed)
         await supabase
           .from('orders')
-          .update({ status: 'refunded' })
+          .update({ status: 'refund_failed' })
           .eq('id', order.id)
         
         return NextResponse.json({ 
