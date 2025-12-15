@@ -77,6 +77,13 @@ export async function POST(request: NextRequest) {
     if (order.status !== 'pending') {
       console.log('Order status is not pending:', order.status)
       
+      if (order.status === 'processing') {
+        return NextResponse.json({ 
+          error: 'Order is already being processed. Please wait.',
+          status: 'processing'
+        }, { status: 409 })
+      }
+
       if (order.status === 'refunded') {
         return NextResponse.json({ 
           error: 'Order already refunded', 
@@ -155,10 +162,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not verify transaction' }, { status: 400 })
     }
 
-    // Save tx_hash BEFORE attempting airtime send (maintains audit trail)
+    // Save tx_hash and mark as processing BEFORE attempting airtime send (maintains audit trail)
     await supabase
       .from('orders')
-      .update({ tx_hash: txHash })
+      .update({ tx_hash: txHash, status: 'processing' })
       .eq('id', order.id)
 
 
@@ -265,6 +272,10 @@ export async function POST(request: NextRequest) {
 
       // Handle AT duplicate throttling explicitly without trying to refund
       if (errorMessage.toLowerCase().includes('duplicate request')) {
+        await supabase
+          .from('orders')
+          .update({ status: 'duplicate' })
+          .eq('id', order.id)
         return NextResponse.json({
           error: 'A duplicate airtime request was received within the last 5 minutes. Please wait and try again or create a new order.',
           status: 'duplicate'
@@ -343,11 +354,11 @@ export async function POST(request: NextRequest) {
           console.error('Failed to update order with refund tx hash:', updateError)
         }
 
+        const normalizedError = errorMessage || 'Airtime send failed';
         return NextResponse.json({ 
-          error: 'Airtime send failed, refund executed', 
-          details: errorMessage,
+          error: normalizedError, 
           refundTxHash 
-        }, { status: 500 })
+        }, { status: 400 })
       } catch (refundError) {
         console.error('Refund execution failed:', refundError)
         await supabase

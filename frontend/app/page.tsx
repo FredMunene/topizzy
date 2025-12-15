@@ -32,6 +32,10 @@ export default function Home() {
   const [amountKes, setAmountKes] = useState("");
   const [validationError, setValidationError] = useState<string>("");
   const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number; airtimeUsdc?: number; serviceFeeUsdc?: number } | null>(null);
+  const [airtimeSendState, setAirtimeSendState] = useState<Record<string, 'pending' | 'done' | 'error'>>({});
+  const [eoaTxnBusy, setEoaTxnBusy] = useState(false);
+  const [smartFlowStarted, setSmartFlowStarted] = useState(false);
+  const [smartTxnBusy, setSmartTxnBusy] = useState(false);
   const [shouldPoll, setShouldPoll] = useState(true);
   const { address: wagmiAddress, chain } = useAccount();
   const { data: wagmiWalletClient } = useWalletClient();
@@ -41,6 +45,7 @@ export default function Home() {
     coinbaseSmartWallet ||
     (walletCapabilities as { atomicBatch?: { supported?: boolean } } | undefined)?.atomicBatch?.supported
   );
+  const currentAirtimeSendState = order ? airtimeSendState[order.orderRef] : undefined;
 
   // Build a unified wallet client that prefers MiniKit's kit when available,
   // otherwise falls back to the wagmi wallet client.
@@ -307,7 +312,7 @@ export default function Home() {
     },
   });
 
-  const sendAirtime = useCallback(async (orderRef: string, txHash: string) => {
+  const sendAirtime = useCallback(async (orderRef: string, txHash: string, opts?: { suppressErrors?: boolean }) => {
     const airtimeResponse = await fetch("/api/airtime/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -318,7 +323,31 @@ export default function Home() {
     });
     
     if (!airtimeResponse.ok) {
-      throw new Error(`Airtime service error: ${airtimeResponse.status}`);
+      if (opts?.suppressErrors) {
+        console.warn('Airtime send returned non-200 status (suppressed):', airtimeResponse.status);
+        return null;
+      }
+      let friendly = 'We are processing your payment. Please wait a moment.';
+      try {
+        const data = await airtimeResponse.json();
+        if (typeof data.error === 'string') {
+          friendly = data.error;
+        } else if (typeof data.message === 'string') {
+          friendly = data.message;
+        }
+      } catch {
+        // ignore JSON parse errors; fall back to status-based message
+      }
+      if (airtimeResponse.status === 429) {
+        friendly = 'We are already processing this order. Please wait a few minutes before trying again.';
+      } else if (airtimeResponse.status === 409) {
+        friendly = 'This order was already processed. If you do not see the airtime, please create a new order.';
+      } else if (airtimeResponse.status === 400) {
+        friendly = friendly || 'This order is no longer pending. Please start a new order.';
+      } else if (airtimeResponse.status >= 500) {
+        friendly = 'Airtime service is temporarily unavailable. Please try again shortly.';
+      }
+      throw new Error(friendly);
     }
     
     return airtimeResponse.json();
@@ -412,6 +441,27 @@ export default function Home() {
     },
   });
 
+  // Poll order status
+  const { data: orderStatus } = useQuery({
+    queryKey: ['orderStatus', order?.orderRef],
+    queryFn: async () => {
+      if (!order?.orderRef) return null;
+      const response = await fetch(`/api/orders/${order.orderRef}`);
+      if (!response.ok) throw new Error('Failed to fetch order status');
+      const data = await response.json();
+      
+      // Stop polling if order reaches final state
+      if (data.status === 'fulfilled' || data.status === 'refunded') {
+        setShouldPoll(false);
+      }
+      
+      return data;
+    },
+    enabled: !!order?.orderRef && shouldPoll,
+    refetchInterval: shouldPoll ? 2000 : false,
+    refetchIntervalInBackground: true,
+  });
+
   const smartWalletCalls = useCallback(async (): Promise<Call[]> => {
     if (!order) {
       throw new Error('No order available to pay');
@@ -439,43 +489,38 @@ export default function Home() {
 
   const handleSmartWalletSuccess = useCallback(async ({ transactionReceipts }: { transactionReceipts: { transactionHash: string }[] }) => {
     if (!order) return;
+    if (orderStatus?.status && orderStatus.status !== 'pending') {
+      setValidationError('This order is no longer pending. Please create a new order.');
+      return;
+    }
+    const priorState = airtimeSendState[order.orderRef];
+    if (priorState === 'pending' || priorState === 'done') {
+      return;
+    }
+    setSmartFlowStarted(false);
+    setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'pending' }));
     const txHash = transactionReceipts[0]?.transactionHash;
     if (!txHash) {
       setValidationError('Missing transaction hash from wallet');
+      setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'error' }));
       return;
     }
     try {
-      await sendAirtime(order.orderRef, txHash);
+      await sendAirtime(order.orderRef, txHash, { suppressErrors: true });
+      setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'done' }));
+      setValidationError('');
     } catch (err: unknown) {
-      setValidationError(err instanceof Error ? err.message : String(err));
+      console.warn('Airtime send error (smart wallet suppressed):', err);
+      setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'done' }));
     }
-  }, [order, sendAirtime]);
-
-  // Poll order status
-  const { data: orderStatus } = useQuery({
-    queryKey: ['orderStatus', order?.orderRef],
-    queryFn: async () => {
-      if (!order?.orderRef) return null;
-      const response = await fetch(`/api/orders/${order.orderRef}`);
-      if (!response.ok) throw new Error('Failed to fetch order status');
-      const data = await response.json();
-      
-      // Stop polling if order reaches final state
-      if (data.status === 'fulfilled' || data.status === 'refunded') {
-        setShouldPoll(false);
-      }
-      
-      return data;
-    },
-    enabled: !!order?.orderRef && shouldPoll,
-    refetchInterval: shouldPoll ? 2000 : false,
-    refetchIntervalInBackground: true,
-  });
+  }, [order, orderStatus?.status, airtimeSendState, sendAirtime]);
 
   // Reset polling when order changes
   useEffect(() => {
     if (order) {
       setShouldPoll(true);
+      setSmartFlowStarted(false);
+      setSmartTxnBusy(false);
     }
   }, [order]);
 
@@ -521,9 +566,14 @@ export default function Home() {
     
     // Clear any previous errors
     setValidationError("");
+    setEoaTxnBusy(true);
     
     // The mutation will handle walletClient errors with better messages
-    payAndSendMutation.mutate(order);
+    payAndSendMutation.mutate(order, {
+      onError: () => setEoaTxnBusy(false),
+      onSuccess: () => setEoaTxnBusy(false),
+      onSettled: () => undefined
+    });
   };
 
   const usdcBalanceFormatted = usdcBalance 
@@ -542,12 +592,14 @@ export default function Home() {
     continueButtonText = 'Continue';
   }
 
+  const isOrderProcessing = orderStatus?.status === 'processing' || (orderStatus?.status === 'pending' && Boolean(orderStatus?.tx_hash));
+
   let payButtonText: string;
   if (orderStatus?.status === 'refunded') {
     payButtonText = 'Order Refunded';
   } else if (orderStatus?.status === 'fulfilled') {
     payButtonText = 'Order Completed';
-  } else if (orderStatus?.tx_hash && orderStatus?.status === 'pending') {
+  } else if (isOrderProcessing) {
     payButtonText = 'Processing Airtime...';
   } else if (payAndSendMutation.isPending) {
     payButtonText = 'Processing Payment...';
@@ -560,7 +612,28 @@ export default function Home() {
     !isConnected ||
     orderStatus?.status === 'refunded' ||
     orderStatus?.status === 'fulfilled' ||
-    (orderStatus?.tx_hash && orderStatus?.status === 'pending');
+    isOrderProcessing ||
+    smartTxnBusy ||
+    eoaTxnBusy ||
+    currentAirtimeSendState === 'pending' ||
+    currentAirtimeSendState === 'done';
+
+  useEffect(() => {
+    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
+      setEoaTxnBusy(false);
+      setSmartFlowStarted(false);
+      setSmartTxnBusy(false);
+    }
+    if (orderStatus?.status === 'processing' || orderStatus?.status === 'pending') {
+      setSmartFlowStarted(false);
+      setSmartTxnBusy(false);
+    }
+  }, [orderStatus?.status]);
+
+  useEffect(() => {
+    setSmartFlowStarted(false);
+    setSmartTxnBusy(false);
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -763,30 +836,56 @@ export default function Home() {
               )}
 
               {isSmartWallet ? (
-                <Transaction
-                  chainId={8453}
-                  calls={smartWalletCalls}
-                  isSponsored
-                  onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
-                  onSuccess={handleSmartWalletSuccess}
-                  className={styles.continueButton}
-                >
-                  <TransactionButton
+                smartFlowStarted ? (
+                  <Transaction
+                    chainId={8453}
+                    calls={smartWalletCalls}
+                    isSponsored
+                    onStatus={(status) => {
+                      const busyStates = ['buildingTransaction', 'transactionPending', 'transactionLegacyExecuted'];
+                      if (busyStates.includes(status.statusName)) {
+                        setSmartTxnBusy(true);
+                      } else if (status.statusName === 'success' || status.statusName === 'error' || status.statusName === 'reset') {
+                        setSmartTxnBusy(false);
+                        setSmartFlowStarted(false);
+                      }
+                    }}
+                    onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
+                    onSuccess={handleSmartWalletSuccess}
                     className={styles.continueButton}
+                  >
+                    <TransactionButton
+                      className={styles.continueButton}
+                      disabled={smartWalletDisabled}
+                      text={payButtonText}
+                      pendingOverride={{ text: 'Processing Airtime...' }}
+                    />
+                    <TransactionToast />
+                  </Transaction>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setValidationError('');
+                      setSmartFlowStarted(true);
+                    }}
                     disabled={smartWalletDisabled}
-                    text={payButtonText}
-                  />
-                  <TransactionToast />
-                </Transaction>
+                    className={styles.continueButton}
+                  >
+                    {payButtonText}
+                  </button>
+                )
               ) : (
                 <button
                   onClick={handlePay}
                   disabled={
                     payAndSendMutation.isPending ||
+                    eoaTxnBusy ||
                     !isConnected ||
                     orderStatus?.status === 'refunded' ||
                     orderStatus?.status === 'fulfilled' ||
-                    (orderStatus?.tx_hash && orderStatus?.status === 'pending')
+                    isOrderProcessing ||
+                    currentAirtimeSendState === 'pending' ||
+                    currentAirtimeSendState === 'done'
                   }
                   className={styles.continueButton}
                 >
@@ -845,6 +944,7 @@ export default function Home() {
               <button
                 onClick={() => {
                   setOrder(null);
+                  setAirtimeSendState({});
                   setValidationError("");
                   payAndSendMutation.reset();
                 }}
