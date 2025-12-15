@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState, useCallback} from "react";
-import { Wallet } from "@coinbase/onchainkit/wallet";
+import { Wallet, useIsWalletACoinbaseSmartWallet } from "@coinbase/onchainkit/wallet";
+import { Transaction, TransactionButton, TransactionToast } from "@coinbase/onchainkit/transaction";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
-import { parseUnits, formatUnits, encodeFunctionData } from 'viem'
+import { useCapabilities } from 'wagmi/experimental'
+import { parseUnits, formatUnits, encodeFunctionData, erc20Abi } from 'viem'
 import type { Abi } from 'abitype'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
@@ -12,6 +14,7 @@ import styles from "./page.module.css";
 
 const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}` // Base Mainnet USDC
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
+type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
 
 const countries = [
   { code: 'KE', name: 'Kenya', prefix: '+254' },
@@ -30,9 +33,20 @@ export default function Home() {
   const [amountKes, setAmountKes] = useState("");
   const [validationError, setValidationError] = useState<string>("");
   const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number; airtimeUsdc?: number; serviceFeeUsdc?: number } | null>(null);
+  const [airtimeSendState, setAirtimeSendState] = useState<Record<string, 'pending' | 'done' | 'error'>>({});
+  const [eoaTxnBusy, setEoaTxnBusy] = useState(false);
+  const [smartFlowStarted, setSmartFlowStarted] = useState(false);
+  const [smartTxnBusy, setSmartTxnBusy] = useState(false);
   const [shouldPoll, setShouldPoll] = useState(true);
   const { address: wagmiAddress, chain } = useAccount();
   const { data: wagmiWalletClient } = useWalletClient();
+  const { data: walletCapabilities } = useCapabilities({ chainId: 8453 });
+  const coinbaseSmartWallet = useIsWalletACoinbaseSmartWallet();
+  const isSmartWallet = Boolean(
+    coinbaseSmartWallet ||
+    (walletCapabilities as { atomicBatch?: { supported?: boolean } } | undefined)?.atomicBatch?.supported
+  );
+  const currentAirtimeSendState = order ? airtimeSendState[order.orderRef] : undefined;
 
   // Build a unified wallet client that prefers MiniKit's kit when available,
   // otherwise falls back to the wagmi wallet client.
@@ -101,15 +115,49 @@ export default function Home() {
     } as UnifiedWalletClient;
   })();
 
-  const effectiveAddress = (() => {
-    const addr = (unifiedWalletClient && (unifiedWalletClient.account ?? wagmiAddress)) ?? wagmiAddress;
-    if (!addr) return undefined;
-    if (typeof addr === 'string') {
+  const [effectiveAddress, setEffectiveAddress] = useState<`0x${string}` | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    const normalize = (addr?: string | null) => {
+      if (!addr) return undefined;
       const prefixed = addr.startsWith('0x') ? addr : `0x${addr}`;
       return prefixed.toLowerCase() as `0x${string}`;
-    }
-    return undefined;
-  })();
+    };
+
+    const resolveAddress = async () => {
+      // Prefer wagmi (EOA) address if available
+      const wagmiNormalized = normalize(wagmiAddress ?? undefined);
+      if (wagmiNormalized) {
+        setEffectiveAddress(wagmiNormalized);
+        return;
+      }
+
+      // Fallback to MiniKit runtime if present
+      const runtime = miniKitRuntime as unknown as { account?: string; getAccount?: () => string | Promise<string> } | undefined;
+      const runtimeAccount = normalize(runtime?.account ?? undefined);
+      if (runtimeAccount) {
+        setEffectiveAddress(runtimeAccount);
+        return;
+      }
+
+      if (typeof runtime?.getAccount === 'function') {
+        try {
+          const addr = await runtime.getAccount();
+          if (!cancelled) {
+            setEffectiveAddress(normalize(addr));
+          }
+        } catch (err) {
+          console.warn('Failed to resolve MiniKit account', err);
+        }
+      }
+    };
+
+    resolveAddress();
+    return () => {
+      cancelled = true;
+    };
+  }, [wagmiAddress, miniKitRuntime]);
 
   // Switch to Base Mainnet
   const switchToBaseMainnet = async () => {
@@ -181,7 +229,7 @@ export default function Home() {
       const maybe = _miniObj as unknown as { setMiniAppReady?: () => void } | undefined;
       maybe?.setMiniAppReady?.();
     }
-  }, [mini]);
+  }, [mini, _isMiniAppReady, _miniObj]);
 
   
 
@@ -265,10 +313,54 @@ export default function Home() {
     },
   });
 
+  const sendAirtime = useCallback(async (orderRef: string, txHash: string, opts?: { suppressErrors?: boolean }) => {
+    const airtimeResponse = await fetch("/api/airtime/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        orderRef,
+        txHash 
+      }),
+    });
+    
+    if (!airtimeResponse.ok) {
+      if (opts?.suppressErrors) {
+        console.warn('Airtime send returned non-200 status (suppressed):', airtimeResponse.status);
+        return null;
+      }
+      let friendly = 'We are processing your payment. Please wait a moment.';
+      try {
+        const data = await airtimeResponse.json();
+        if (typeof data.error === 'string') {
+          friendly = data.error;
+        } else if (typeof data.message === 'string') {
+          friendly = data.message;
+        }
+      } catch {
+        // ignore JSON parse errors; fall back to status-based message
+      }
+      if (airtimeResponse.status === 429) {
+        friendly = 'We are already processing this order. Please wait a few minutes before trying again.';
+      } else if (airtimeResponse.status === 409) {
+        friendly = 'This order was already processed. If you do not see the airtime, please create a new order.';
+      } else if (airtimeResponse.status === 400) {
+        friendly = friendly || 'This order is no longer pending. Please start a new order.';
+      } else if (airtimeResponse.status >= 500) {
+        friendly = 'Airtime service is temporarily unavailable. Please try again shortly.';
+      }
+      throw new Error(friendly);
+    }
+    
+    return airtimeResponse.json();
+  }, []);
+
   // Pay with permit and send airtime
   const payAndSendMutation = useMutation({
     mutationFn: async (order: { orderRef: string; amountKes: number; amountUsdc: number }) => {
       try {
+        if (isSmartWallet) {
+          throw new Error('Smart wallet detected. Please use the smart wallet payment button.');
+        }
         if (!effectiveAddress) {
           throw new Error('Please connect your wallet first');
         }
@@ -329,22 +421,7 @@ export default function Home() {
           ]
         });
         
-        // Now send airtime
-        const airtimeResponse = await fetch("/api/airtime/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            orderRef: order.orderRef,
-            txHash 
-          }),
-        });
-        
-        if (!airtimeResponse.ok) {
-          // const errorText = await airtimeResponse.text();
-          throw new Error(`Airtime service error: ${airtimeResponse.status}`);
-        }
-        
-        const result = await airtimeResponse.json();
+        const result = await sendAirtime(order.orderRef, txHash as string);
         return result;
       } catch (error: unknown) {
         // Transform technical errors into user-friendly messages
@@ -386,10 +463,65 @@ export default function Home() {
     refetchIntervalInBackground: true,
   });
 
+  const smartWalletCalls = useCallback(async (): Promise<SmartCall[]> => {
+    if (!order) {
+      throw new Error('No order available to pay');
+    }
+    const amountWei = parseUnits(order.amountUsdc.toString(), 6);
+    return [
+      {
+        to: USDC_ADDRESS,
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [AIRTIME_CONTRACT_ADDRESS, amountWei]
+        })
+      },
+      {
+        to: AIRTIME_CONTRACT_ADDRESS,
+        data: encodeFunctionData({
+          abi: AIRTIME_ABI as Abi,
+          functionName: 'deposit',
+          args: [order.orderRef, amountWei]
+        })
+      }
+    ];
+  }, [order]);
+
+  const handleSmartWalletSuccess = useCallback(async ({ transactionReceipts }: { transactionReceipts: { transactionHash: string }[] }) => {
+    if (!order) return;
+    if (orderStatus?.status && orderStatus.status !== 'pending') {
+      setValidationError('This order is no longer pending. Please create a new order.');
+      return;
+    }
+    const priorState = airtimeSendState[order.orderRef];
+    if (priorState === 'pending' || priorState === 'done') {
+      return;
+    }
+    setSmartFlowStarted(false);
+    setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'pending' }));
+    const txHash = transactionReceipts[0]?.transactionHash;
+    if (!txHash) {
+      setValidationError('Missing transaction hash from wallet');
+      setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'error' }));
+      return;
+    }
+    try {
+      await sendAirtime(order.orderRef, txHash, { suppressErrors: true });
+      setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'done' }));
+      setValidationError('');
+    } catch (err: unknown) {
+      console.warn('Airtime send error (smart wallet suppressed):', err);
+      setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'done' }));
+    }
+  }, [order, orderStatus?.status, airtimeSendState, sendAirtime]);
+
   // Reset polling when order changes
   useEffect(() => {
     if (order) {
       setShouldPoll(true);
+      setSmartFlowStarted(false);
+      setSmartTxnBusy(false);
     }
   }, [order]);
 
@@ -425,6 +557,7 @@ export default function Home() {
   };
 
   const handlePay = () => {
+    if (isSmartWallet) return; // smart wallets use OnchainKit Transaction flow
     if (!order) return;
     
     if (!effectiveAddress) {
@@ -434,9 +567,14 @@ export default function Home() {
     
     // Clear any previous errors
     setValidationError("");
+    setEoaTxnBusy(true);
     
     // The mutation will handle walletClient errors with better messages
-    payAndSendMutation.mutate(order);
+    payAndSendMutation.mutate(order, {
+      onError: () => setEoaTxnBusy(false),
+      onSuccess: () => setEoaTxnBusy(false),
+      onSettled: () => undefined
+    });
   };
 
   const usdcBalanceFormatted = usdcBalance 
@@ -455,12 +593,14 @@ export default function Home() {
     continueButtonText = 'Continue';
   }
 
+  const isOrderProcessing = orderStatus?.status === 'processing' || (orderStatus?.status === 'pending' && Boolean(orderStatus?.tx_hash));
+
   let payButtonText: string;
   if (orderStatus?.status === 'refunded') {
     payButtonText = 'Order Refunded';
   } else if (orderStatus?.status === 'fulfilled') {
     payButtonText = 'Order Completed';
-  } else if (orderStatus?.tx_hash && orderStatus?.status === 'pending') {
+  } else if (isOrderProcessing) {
     payButtonText = 'Processing Airtime...';
   } else if (payAndSendMutation.isPending) {
     payButtonText = 'Processing Payment...';
@@ -469,8 +609,35 @@ export default function Home() {
   } else {
     payButtonText = 'Pay & Send Airtime';
   }
+  const smartWalletDisabled =
+    !isConnected ||
+    orderStatus?.status === 'refunded' ||
+    orderStatus?.status === 'fulfilled' ||
+    isOrderProcessing ||
+    smartTxnBusy ||
+    eoaTxnBusy ||
+    currentAirtimeSendState === 'pending' ||
+    currentAirtimeSendState === 'done';
+
+  useEffect(() => {
+    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
+      setEoaTxnBusy(false);
+      setSmartFlowStarted(false);
+      setSmartTxnBusy(false);
+    }
+    if (orderStatus?.status === 'processing' || orderStatus?.status === 'pending') {
+      setSmartFlowStarted(false);
+      setSmartTxnBusy(false);
+    }
+  }, [orderStatus?.status]);
+
+  useEffect(() => {
+    setSmartFlowStarted(false);
+    setSmartTxnBusy(false);
+  }, []);
 
   return (
+    <>
     <div className={styles.container}>
       <header className={styles.headerWrapper}>
         <Wallet />
@@ -670,19 +837,63 @@ export default function Home() {
                 <div className={styles.errorMessage}>{validationError}</div>
               )}
 
-              <button
-                onClick={handlePay}
-                disabled={
-                  payAndSendMutation.isPending ||
-                  !isConnected ||
-                  orderStatus?.status === 'refunded' ||
-                  orderStatus?.status === 'fulfilled' ||
-                  (orderStatus?.tx_hash && orderStatus?.status === 'pending')
-                }
-                className={styles.continueButton}
-              >
-                {payButtonText}
-              </button>
+              {isSmartWallet ? (
+                smartFlowStarted ? (
+                  <Transaction
+                    chainId={8453}
+                    calls={smartWalletCalls}
+                    isSponsored
+                    onStatus={(status) => {
+                      const busyStates = ['buildingTransaction', 'transactionPending', 'transactionLegacyExecuted'];
+                      if (busyStates.includes(status.statusName)) {
+                        setSmartTxnBusy(true);
+                      } else if (status.statusName === 'success' || status.statusName === 'error' || status.statusName === 'reset') {
+                        setSmartTxnBusy(false);
+                        setSmartFlowStarted(false);
+                      }
+                    }}
+                    onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
+                    onSuccess={handleSmartWalletSuccess}
+                    className={styles.continueButton}
+                  >
+                    <TransactionButton
+                      className={styles.continueButton}
+                      disabled={smartWalletDisabled}
+                      text={payButtonText}
+                      pendingOverride={{ text: 'Processing Airtime...' }}
+                    />
+                    <TransactionToast />
+                  </Transaction>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setValidationError('');
+                      setSmartFlowStarted(true);
+                    }}
+                    disabled={smartWalletDisabled}
+                    className={styles.continueButton}
+                  >
+                    {payButtonText}
+                  </button>
+                )
+              ) : (
+                <button
+                  onClick={handlePay}
+                  disabled={
+                    payAndSendMutation.isPending ||
+                    eoaTxnBusy ||
+                    !isConnected ||
+                    orderStatus?.status === 'refunded' ||
+                    orderStatus?.status === 'fulfilled' ||
+                    isOrderProcessing ||
+                    currentAirtimeSendState === 'pending' ||
+                    currentAirtimeSendState === 'done'
+                  }
+                  className={styles.continueButton}
+                >
+                  {payButtonText}
+                </button>
+              )}
 
               {/* Order Status Display */}
               {orderStatus && (
@@ -735,6 +946,7 @@ export default function Home() {
               <button
                 onClick={() => {
                   setOrder(null);
+                  setAirtimeSendState({});
                   setValidationError("");
                   payAndSendMutation.reset();
                 }}
@@ -747,5 +959,17 @@ export default function Home() {
         )}
       </div>
     </div>
+    <a
+    href="https://wa.me/254743913802?text=Hi%2C%20I%20am%20making%20an%20inquiry%20concerning%20Topizzy"
+      target="_blank"
+      rel="noopener noreferrer"
+      className={styles.whatsappFab}
+      aria-label="Contact us on WhatsApp"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M20.52 3.48A11.7 11.7 0 0 0 12 .25 11.75 11.75 0 0 0 1.18 16.25L.04 23.75l7.7-1.98a11.73 11.73 0 0 0 4.28.82h.01a11.75 11.75 0 0 0 8.49-20.1Zm-8.5 16.8h-.01a9.8 9.8 0 0 1-4.2-.97l-.3-.14-4.58 1.18 1.22-4.47-.15-.31a9.8 9.8 0 1 1 18.02-4.26 9.75 9.75 0 0 1-9.8 8.97Zm5.38-7.35c-.29-.15-1.7-.84-1.97-.93-.26-.1-.45-.14-.64.15-.19.29-.74.92-.9 1.1-.17.19-.33.21-.62.07-.29-.14-1.24-.46-2.36-1.47-.87-.77-1.46-1.72-1.63-2-.17-.29-.02-.44.13-.58.13-.13.29-.33.43-.5.14-.17.19-.29.29-.48.1-.19.05-.36-.03-.5-.07-.15-.63-1.5-.86-2.05-.22-.53-.45-.46-.62-.47-.16-.01-.36-.02-.56-.02-.2 0-.52.07-.79.36-.26.29-1.02.99-1.02 2.41 0 1.42 1.04 2.79 1.18 2.98.15.19 2.05 3.13 4.96 4.39.69.3 1.22.48 1.64.61.69.22 1.33.19 1.83.11.56-.08 1.7-.69 1.94-1.36.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34Z" />
+      </svg>
+    </a>
+    </>
   );
 }

@@ -20,6 +20,16 @@ export const AIRTIME_ABI = [
   },
   {
     "type": "function",
+    "name": "deposit",
+    "inputs": [
+      {"name": "depositRef", "type": "string", "internalType": "string"},
+      {"name": "amount", "type": "uint256", "internalType": "uint256"}
+    ],
+    "outputs": [{"name": "depositId", "type": "uint256", "internalType": "uint256"}],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "refund",
     "inputs": [
       {"name": "orderRef", "type": "string", "internalType": "string"},
