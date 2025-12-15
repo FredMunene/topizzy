@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState, useCallback} from "react";
-import { Wallet } from "@coinbase/onchainkit/wallet";
+import { Wallet, useIsWalletACoinbaseSmartWallet } from "@coinbase/onchainkit/wallet";
+import { Transaction, TransactionButton, TransactionToast, type Call } from "@coinbase/onchainkit/transaction";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
-import { parseUnits, formatUnits, encodeFunctionData } from 'viem'
+import { parseUnits, formatUnits, encodeFunctionData, erc20Abi } from 'viem'
 import type { Abi } from 'abitype'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
@@ -33,6 +34,7 @@ export default function Home() {
   const [shouldPoll, setShouldPoll] = useState(true);
   const { address: wagmiAddress, chain } = useAccount();
   const { data: wagmiWalletClient } = useWalletClient();
+  const isSmartWallet = useIsWalletACoinbaseSmartWallet();
 
   // Build a unified wallet client that prefers MiniKit's kit when available,
   // otherwise falls back to the wagmi wallet client.
@@ -101,15 +103,49 @@ export default function Home() {
     } as UnifiedWalletClient;
   })();
 
-  const effectiveAddress = (() => {
-    const addr = (unifiedWalletClient && (unifiedWalletClient.account ?? wagmiAddress)) ?? wagmiAddress;
-    if (!addr) return undefined;
-    if (typeof addr === 'string') {
+  const [effectiveAddress, setEffectiveAddress] = useState<`0x${string}` | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    const normalize = (addr?: string | null) => {
+      if (!addr) return undefined;
       const prefixed = addr.startsWith('0x') ? addr : `0x${addr}`;
       return prefixed.toLowerCase() as `0x${string}`;
-    }
-    return undefined;
-  })();
+    };
+
+    const resolveAddress = async () => {
+      // Prefer wagmi (EOA) address if available
+      const wagmiNormalized = normalize(wagmiAddress ?? undefined);
+      if (wagmiNormalized) {
+        setEffectiveAddress(wagmiNormalized);
+        return;
+      }
+
+      // Fallback to MiniKit runtime if present
+      const runtime = miniKitRuntime as unknown as { account?: string; getAccount?: () => string | Promise<string> } | undefined;
+      const runtimeAccount = normalize(runtime?.account ?? undefined);
+      if (runtimeAccount) {
+        setEffectiveAddress(runtimeAccount);
+        return;
+      }
+
+      if (typeof runtime?.getAccount === 'function') {
+        try {
+          const addr = await runtime.getAccount();
+          if (!cancelled) {
+            setEffectiveAddress(normalize(addr));
+          }
+        } catch (err) {
+          console.warn('Failed to resolve MiniKit account', err);
+        }
+      }
+    };
+
+    resolveAddress();
+    return () => {
+      cancelled = true;
+    };
+  }, [wagmiAddress, miniKitRuntime]);
 
   // Switch to Base Mainnet
   const switchToBaseMainnet = async () => {
@@ -265,6 +301,23 @@ export default function Home() {
     },
   });
 
+  const sendAirtime = useCallback(async (orderRef: string, txHash: string) => {
+    const airtimeResponse = await fetch("/api/airtime/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        orderRef,
+        txHash 
+      }),
+    });
+    
+    if (!airtimeResponse.ok) {
+      throw new Error(`Airtime service error: ${airtimeResponse.status}`);
+    }
+    
+    return airtimeResponse.json();
+  }, []);
+
   // Pay with permit and send airtime
   const payAndSendMutation = useMutation({
     mutationFn: async (order: { orderRef: string; amountKes: number; amountUsdc: number }) => {
@@ -329,22 +382,7 @@ export default function Home() {
           ]
         });
         
-        // Now send airtime
-        const airtimeResponse = await fetch("/api/airtime/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            orderRef: order.orderRef,
-            txHash 
-          }),
-        });
-        
-        if (!airtimeResponse.ok) {
-          // const errorText = await airtimeResponse.text();
-          throw new Error(`Airtime service error: ${airtimeResponse.status}`);
-        }
-        
-        const result = await airtimeResponse.json();
+        const result = await sendAirtime(order.orderRef, txHash as string);
         return result;
       } catch (error: unknown) {
         // Transform technical errors into user-friendly messages
@@ -364,6 +402,45 @@ export default function Home() {
       }
     },
   });
+
+  const smartWalletCalls = useCallback(async (): Promise<Call[]> => {
+    if (!order) {
+      throw new Error('No order available to pay');
+    }
+    const amountWei = parseUnits(order.amountUsdc.toString(), 6);
+    return [
+      {
+        to: USDC_ADDRESS,
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [AIRTIME_CONTRACT_ADDRESS, amountWei]
+        })
+      },
+      {
+        to: AIRTIME_CONTRACT_ADDRESS,
+        data: encodeFunctionData({
+          abi: AIRTIME_ABI as Abi,
+          functionName: 'deposit',
+          args: [order.orderRef, amountWei]
+        })
+      }
+    ];
+  }, [order]);
+
+  const handleSmartWalletSuccess = useCallback(async ({ transactionReceipts }: { transactionReceipts: { transactionHash: string }[] }) => {
+    if (!order) return;
+    const txHash = transactionReceipts[0]?.transactionHash;
+    if (!txHash) {
+      setValidationError('Missing transaction hash from wallet');
+      return;
+    }
+    try {
+      await sendAirtime(order.orderRef, txHash);
+    } catch (err: unknown) {
+      setValidationError(err instanceof Error ? err.message : String(err));
+    }
+  }, [order, sendAirtime]);
 
   // Poll order status
   const { data: orderStatus } = useQuery({
@@ -425,6 +502,7 @@ export default function Home() {
   };
 
   const handlePay = () => {
+    if (isSmartWallet) return; // smart wallets use OnchainKit Transaction flow
     if (!order) return;
     
     if (!effectiveAddress) {
@@ -469,6 +547,11 @@ export default function Home() {
   } else {
     payButtonText = 'Pay & Send Airtime';
   }
+  const smartWalletDisabled =
+    !isConnected ||
+    orderStatus?.status === 'refunded' ||
+    orderStatus?.status === 'fulfilled' ||
+    (orderStatus?.tx_hash && orderStatus?.status === 'pending');
 
   return (
     <div className={styles.container}>
@@ -670,19 +753,37 @@ export default function Home() {
                 <div className={styles.errorMessage}>{validationError}</div>
               )}
 
-              <button
-                onClick={handlePay}
-                disabled={
-                  payAndSendMutation.isPending ||
-                  !isConnected ||
-                  orderStatus?.status === 'refunded' ||
-                  orderStatus?.status === 'fulfilled' ||
-                  (orderStatus?.tx_hash && orderStatus?.status === 'pending')
-                }
-                className={styles.continueButton}
-              >
-                {payButtonText}
-              </button>
+              {isSmartWallet ? (
+                <Transaction
+                  chainId={8453}
+                  calls={smartWalletCalls}
+                  isSponsored
+                  onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
+                  onSuccess={handleSmartWalletSuccess}
+                  className={styles.continueButton}
+                >
+                  <TransactionButton
+                    className={styles.continueButton}
+                    disabled={smartWalletDisabled}
+                    text={payButtonText}
+                  />
+                  <TransactionToast />
+                </Transaction>
+              ) : (
+                <button
+                  onClick={handlePay}
+                  disabled={
+                    payAndSendMutation.isPending ||
+                    !isConnected ||
+                    orderStatus?.status === 'refunded' ||
+                    orderStatus?.status === 'fulfilled' ||
+                    (orderStatus?.tx_hash && orderStatus?.status === 'pending')
+                  }
+                  className={styles.continueButton}
+                >
+                  {payButtonText}
+                </button>
+              )}
 
               {/* Order Status Display */}
               {orderStatus && (

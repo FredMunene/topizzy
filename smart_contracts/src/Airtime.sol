@@ -61,6 +61,21 @@ contract Airtime is ReentrancyGuard {
         return depositCounter;
     }
 
+    /**
+     * Standard deposit path for wallets that can't sign EIP-2612 permits
+     * (e.g., many smart contract wallets). Requires a prior ERC20 approval.
+     */
+    function deposit(string memory depositRef, uint256 amount) external nonReentrant returns (uint256 depositId) {
+        require(amount > 0, "Amount must be > 0");
+
+        IERC20(usdcToken).safeTransferFrom(msg.sender, address(this), amount);
+
+        depositCounter++;
+        emit OrderPaid(depositRef, msg.sender, amount);
+
+        return depositCounter;
+    }
+
     function refund(string memory orderRef, address receiver, uint256 amount) external onlyTreasury nonReentrant {
         require(receiver != address(0), "Invalid receiver");
         require(amount > 0, "Amount must be > 0");
