@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback} from "react";
 import { Wallet, useIsWalletACoinbaseSmartWallet } from "@coinbase/onchainkit/wallet";
-import { Transaction, TransactionButton, TransactionToast, type Call } from "@coinbase/onchainkit/transaction";
+import { Transaction, TransactionButton, TransactionToast } from "@coinbase/onchainkit/transaction";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
@@ -14,6 +14,7 @@ import styles from "./page.module.css";
 
 const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}` // Base Mainnet USDC
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
+type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
 
 const countries = [
   { code: 'KE', name: 'Kenya', prefix: '+254' },
@@ -228,7 +229,7 @@ export default function Home() {
       const maybe = _miniObj as unknown as { setMiniAppReady?: () => void } | undefined;
       maybe?.setMiniAppReady?.();
     }
-  }, [mini]);
+  }, [mini, _isMiniAppReady, _miniObj]);
 
   
 
@@ -462,7 +463,7 @@ export default function Home() {
     refetchIntervalInBackground: true,
   });
 
-  const smartWalletCalls = useCallback(async (): Promise<Call[]> => {
+  const smartWalletCalls = useCallback(async (): Promise<SmartCall[]> => {
     if (!order) {
       throw new Error('No order available to pay');
     }
