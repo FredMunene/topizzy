@@ -42,6 +42,8 @@ More regions coming soon.
 - **Community-driven adoption**  
 - Powered by **Base** for fast, low-fee transactions
 
+## Topizzy Architechture
+Click [HERE](/home/dorah/topizzy/architecture.md)to see the architecture behind Topizzy
 
 ## Integration Methods
 
