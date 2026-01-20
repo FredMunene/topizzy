@@ -20,7 +20,8 @@ const countries = [
   { code: 'KE', name: 'Kenya', prefix: '+254' },
   { code: 'RW', name: 'Rwanda', prefix: '+250' },
   { code: 'UG', name: 'Uganda', prefix: '+256' },
-  { code: 'TZ', name: 'Tanzania', prefix: '+255' }
+  { code: 'TZ', name: 'Tanzania', prefix: '+255' },
+  { code: 'ZA', name: 'South Africa', prefix: '+27' }
 ];
 
 export default function Home() {
@@ -210,6 +211,7 @@ export default function Home() {
     "TZ": "TZS", 
     "UG": "UGX",
     "RW": "RWF",
+    "ZA": "ZAR",
   };
   
   // Get currency from phone number prefix, not just selected country
@@ -218,6 +220,7 @@ export default function Home() {
     if (phoneWithPrefix.startsWith('+255')) return 'TZ';
     if (phoneWithPrefix.startsWith('+256')) return 'UG';
     if (phoneWithPrefix.startsWith('+250')) return 'RW';
+    if (phoneWithPrefix.startsWith('+27')) return 'ZA';
     return selectedCountry.code;
   };
   
@@ -266,6 +269,7 @@ export default function Home() {
       "UG": { min: 50, max: 200000 },
       "TZ": { min: 500, max: 200000 },
       "RW": { min: 100, max: 40000 },
+      "ZA": { min: 5, max: 65 },
     };
     
     const limit = restrictions[selectedCountry.code] || restrictions["KE"];
@@ -670,7 +674,7 @@ export default function Home() {
                     ))}
                   </select>
                   <div className={styles.phoneInputWithFlag}>
-                    <span className={styles.flagIcon}>{selectedCountry.code === 'KE' ? '🇰🇪' : selectedCountry.code === 'RW' ? '🇷🇼' : selectedCountry.code === 'UG' ? '🇺🇬' : '🇹🇿'}</span>
+                    <span className={styles.flagIcon}>{selectedCountry.code === 'KE' ? '🇰🇪' : selectedCountry.code === 'RW' ? '🇷🇼' : selectedCountry.code === 'UG' ? '🇺🇬' : selectedCountry.code === 'ZA' ? '🇿🇦' : '🇹🇿'}</span>
                     <input
                       type="tel"
                       placeholder="743913802"
