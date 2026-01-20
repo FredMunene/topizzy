@@ -42,6 +42,7 @@ export default function Home() {
   const _miniObj = mini as unknown as Record<string, unknown> | undefined;
   const _isMiniAppReady = Boolean(_miniObj?.isMiniAppReady ?? false);
   const [selectedCountry, setSelectedCountry] = useState(countries[0]);
+  const [autoCountrySet, setAutoCountrySet] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amountKes, setAmountKes] = useState("");
   const [validationError, setValidationError] = useState<string>("");
@@ -245,6 +246,26 @@ export default function Home() {
       maybe?.setMiniAppReady?.();
     }
   }, [mini, _isMiniAppReady, _miniObj]);
+
+  useEffect(() => {
+    if (autoCountrySet) return;
+    const fetchGeo = async () => {
+      try {
+        const res = await fetch('/api/geo');
+        if (!res.ok) return;
+        const data = await res.json();
+        const code = (data?.country || '').toUpperCase();
+        const match = countries.find((c) => c.code === code);
+        if (match) {
+          setSelectedCountry(match);
+          setAutoCountrySet(true);
+        }
+      } catch {
+        // Best-effort only
+      }
+    };
+    fetchGeo();
+  }, [autoCountrySet]);
 
   
 
