@@ -82,7 +82,7 @@ export async function generatePermitSignature({
     };
 
     // Sign the message
-    console.log('[permit] signing typed data', { domain, types, message });
+    // No console logging in client bundle
     const signature = await walletClient.signTypedData({
       account: owner,
       domain,
@@ -90,7 +90,7 @@ export async function generatePermitSignature({
       primaryType: 'Permit',
       message
     });
-    console.log('[permit] raw signature returned by wallet:', signature);
+    // No console logging in client bundle
 
     // Robust signature parsing to support wallets that return v as 0/1 or 27/28
     // Helper functions to reduce complexity
@@ -98,15 +98,15 @@ export async function generatePermitSignature({
       if (!sig) throw new Error('Empty signature');
       let s = sig.startsWith('0x') ? sig.slice(2) : sig;
       
-      console.log('[permit] processing signature with length:', s.length);
+      // No console logging in client bundle
       s = s.replace(/^0+/, '').replace(/0+$/, '');
-      console.log('[permit] trimmed signature length:', s.length);
+      // No console logging in client bundle
       
       if (!s || s.length === 0) {
         const orig = sig.startsWith('0x') ? sig.slice(2) : sig;
         const start = Math.floor((orig.length - 130) / 2);
         s = orig.slice(start, start + 130).replace(/^0+/, '');
-        console.log('[permit] extracted middle signature length:', s.length);
+        // No console logging in client bundle
       }
       
       return s;
@@ -175,11 +175,11 @@ export async function generatePermitSignature({
         primaryType: 'Permit',
         message
       });
-      console.log('[permit] retry raw signature:', retrySig);
+      // No console logging in client bundle
       parsed = parseSignature(retrySig);
     }
 
-    console.log('[permit] parsed signature components:', parsed);
+    // No console logging in client bundle
 
     // Validate signature components
     if (!parsed.s || parsed.s === '0x' + '0'.repeat(64)) {

@@ -16,6 +16,18 @@ const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
 
+async function logToServer(level: 'info' | 'error', message: string, meta?: Record<string, unknown>) {
+  try {
+    await fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, message, meta }),
+    });
+  } catch {
+    // Best-effort logging only
+  }
+}
+
 const countries = [
   { code: 'KE', name: 'Kenya', prefix: '+254' },
   { code: 'RW', name: 'Rwanda', prefix: '+250' },
@@ -149,7 +161,7 @@ export default function Home() {
             setEffectiveAddress(normalize(addr));
           }
         } catch (err) {
-          console.warn('Failed to resolve MiniKit account', err);
+          void logToServer('error', 'Failed to resolve MiniKit account', { error: String(err) });
         }
       }
     };
@@ -188,11 +200,11 @@ export default function Home() {
               blockExplorerUrls: ['https://basescan.org'],
             }],
           });
-        } catch (addError: unknown) {
-          console.error('Failed to add Base Mainnet:', addError);
+        } catch (err) {
+          void logToServer('error', 'Failed to add Base Mainnet', { error: String(err) });
         }
       } else {
-        console.error('Failed to switch network:', error);
+        void logToServer('error', 'Failed to switch network', { error: String(error) });
       }
     }
   };
@@ -329,7 +341,7 @@ export default function Home() {
     
     if (!airtimeResponse.ok) {
       if (opts?.suppressErrors) {
-        console.warn('Airtime send returned non-200 status (suppressed):', airtimeResponse.status);
+        void logToServer('error', 'Airtime send failed (suppressed)', { status: airtimeResponse.status });
         return null;
       }
       let friendly = 'We are processing your payment. Please wait a moment.';
@@ -426,10 +438,12 @@ export default function Home() {
         });
         
         const result = await sendAirtime(order.orderRef, txHash as string);
+        void logToServer('info', 'EOA tx completed', { orderRef: order.orderRef, txHash });
         return result;
       } catch (error: unknown) {
         // Transform technical errors into user-friendly messages
         const errorMessage = error instanceof Error ? error.message : String(error);
+        void logToServer('error', 'EOA payment failed', { orderRef: order.orderRef, error: errorMessage });
         
         if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
           throw new Error('Transaction cancelled. Please try again when ready to complete the payment.');
@@ -514,8 +528,9 @@ export default function Home() {
       await sendAirtime(order.orderRef, txHash, { suppressErrors: true });
       setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'done' }));
       setValidationError('');
-    } catch (err: unknown) {
-      console.warn('Airtime send error (smart wallet suppressed):', err);
+      void logToServer('info', 'Smart wallet tx completed', { orderRef: order.orderRef, txHash });
+    } catch (err) {
+      void logToServer('error', 'Smart wallet airtime send failed', { orderRef: order.orderRef, error: String(err) });
       setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'done' }));
     }
   }, [order, orderStatus?.status, airtimeSendState, sendAirtime]);
