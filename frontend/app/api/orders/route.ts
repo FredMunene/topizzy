@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       "255": "TZS",
       "256": "UGX",
       "250": "RWF",
+      "27": "ZAR",
     };
 
     const currency = currencyMap[countryCode] || "KES"; // Default to KES if not found
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
       "256": { lower: 50, upper: 200000 }, // Uganda
       "255": { lower: 500, upper: 200000 }, // Tanzania
       "250": { lower: 100, upper: 40000 }, // Rwanda
+      "27": { lower: 5, upper: 65 }, // South Africa
     };
 
     const restrictions = amountRestrictions[countryCode] || amountRestrictions["254"]; // Default to Kenya if not found
