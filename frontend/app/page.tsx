@@ -41,11 +41,11 @@ export default function Home() {
   const { address: wagmiAddress, chain } = useAccount();
   const { data: wagmiWalletClient } = useWalletClient();
   const { data: walletCapabilities } = useCapabilities({ chainId: 8453 });
+  const miniKitRuntime = ((_miniObj?.kit ?? _miniObj) as unknown) as Record<string, unknown> | undefined;
   const coinbaseSmartWallet = useIsWalletACoinbaseSmartWallet();
-  const isSmartWallet = Boolean(
-    coinbaseSmartWallet ||
-    (walletCapabilities as { atomicBatch?: { supported?: boolean } } | undefined)?.atomicBatch?.supported
-  );
+  const atomicBatchSupported = (walletCapabilities as { atomicBatch?: { supported?: boolean } } | undefined)?.atomicBatch?.supported;
+  const isMiniApp = _isMiniAppReady || Boolean(miniKitRuntime);
+  const isSmartWallet = Boolean(coinbaseSmartWallet || atomicBatchSupported || isMiniApp);
   const currentAirtimeSendState = order ? airtimeSendState[order.orderRef] : undefined;
 
   // Build a unified wallet client that prefers MiniKit's kit when available,
@@ -60,8 +60,6 @@ export default function Home() {
     request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
     writeContract?: (args: WriteContractArgs) => Promise<unknown>;
   } | undefined;
-
-  const miniKitRuntime = ((_miniObj?.kit ?? _miniObj) as unknown) as Record<string, unknown> | undefined;
 
   const unifiedWalletClient: UnifiedWalletClient = (function () {
     if (!miniKitRuntime) return wagmiWalletClient as unknown as UnifiedWalletClient;
@@ -119,10 +117,42 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
+    let attempts = 0;
     const normalize = (addr?: string | null) => {
       if (!addr) return undefined;
       const prefixed = addr.startsWith('0x') ? addr : `0x${addr}`;
       return prefixed.toLowerCase() as `0x${string}`;
+    };
+
+    const resolveMiniKitAccount = async () => {
+      const runtime = miniKitRuntime as unknown as {
+        account?: string;
+        getAccount?: () => string | Promise<string>;
+        request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      } | undefined;
+
+      const runtimeAccount = normalize(runtime?.account ?? undefined);
+      if (runtimeAccount) return runtimeAccount;
+
+      if (typeof runtime?.getAccount === 'function') {
+        try {
+          const addr = await runtime.getAccount();
+          return normalize(addr);
+        } catch {
+          return undefined;
+        }
+      }
+
+      if (typeof runtime?.request === 'function') {
+        try {
+          const accounts = (await runtime.request({ method: 'eth_accounts' })) as string[] | undefined;
+          return normalize(accounts?.[0]);
+        } catch {
+          return undefined;
+        }
+      }
+
+      return undefined;
     };
 
     const resolveAddress = async () => {
@@ -133,23 +163,15 @@ export default function Home() {
         return;
       }
 
-      // Fallback to MiniKit runtime if present
-      const runtime = miniKitRuntime as unknown as { account?: string; getAccount?: () => string | Promise<string> } | undefined;
-      const runtimeAccount = normalize(runtime?.account ?? undefined);
-      if (runtimeAccount) {
-        setEffectiveAddress(runtimeAccount);
+      const miniAddr = await resolveMiniKitAccount();
+      if (!cancelled && miniAddr) {
+        setEffectiveAddress(miniAddr);
         return;
       }
 
-      if (typeof runtime?.getAccount === 'function') {
-        try {
-          const addr = await runtime.getAccount();
-          if (!cancelled) {
-            setEffectiveAddress(normalize(addr));
-          }
-        } catch (err) {
-          console.warn('Failed to resolve MiniKit account', err);
-        }
+      if (!cancelled && attempts < 3 && isMiniApp) {
+        attempts += 1;
+        setTimeout(resolveAddress, 400);
       }
     };
 
@@ -157,7 +179,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [wagmiAddress, miniKitRuntime]);
+  }, [wagmiAddress, miniKitRuntime, isMiniApp]);
 
   // Switch to Base Mainnet
   const switchToBaseMainnet = async () => {
