@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json()
 
-    const { transactionId, phoneNumber, sourceIpAddress, currencyCode, amount } = data
+    const { transactionId, phoneNumber, sourceIpAddress, currencyCode, amount, requestMetadata } = data
 
     console.log("Airtime Validation Callback Data:", data);
     console.log("Received IP Address:", sourceIpAddress);
@@ -46,16 +46,24 @@ export async function POST(request: NextRequest) {
     //   return NextResponse.json({ status: 'Failed' }, { status: 403 });
     // }
 
-    // 2. Query orders table for pending order
-    const { data: order, error } = await supabase
+    // 2. Query orders table for a matching order (pending or processing)
+    const statusFilter = ['pending', 'processing'];
+    const orderRef = requestMetadata?.orderRef as string | undefined;
+
+    const query = supabase
       .from('orders')
       .select('*')
-      .eq('phone_number', phoneNumber)
-      .eq('amount', Number(amount))
-      .eq('status', 'pending')
+      .in('status', statusFilter)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+
+    if (orderRef) {
+      query.eq('order_ref', orderRef);
+    } else {
+      query.eq('phone_number', phoneNumber).eq('amount', Number(amount));
+    }
+
+    const { data: order, error } = await query.single();
 
     if (error || !order) {
       console.error("Pending order not found for validation:", { phoneNumber, amount, error });

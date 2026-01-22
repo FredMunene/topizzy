@@ -16,11 +16,24 @@ const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
 
+async function logToServer(level: 'info' | 'error', message: string, meta?: Record<string, unknown>) {
+  try {
+    await fetch('/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, message, meta }),
+    });
+  } catch {
+    // Best-effort logging only
+  }
+}
+
 const countries = [
   { code: 'KE', name: 'Kenya', prefix: '+254' },
   { code: 'RW', name: 'Rwanda', prefix: '+250' },
   { code: 'UG', name: 'Uganda', prefix: '+256' },
-  { code: 'TZ', name: 'Tanzania', prefix: '+255' }
+  { code: 'TZ', name: 'Tanzania', prefix: '+255' },
+  { code: 'ZA', name: 'South Africa', prefix: '+27' }
 ];
 
 export default function Home() {
@@ -29,6 +42,7 @@ export default function Home() {
   const _miniObj = mini as unknown as Record<string, unknown> | undefined;
   const _isMiniAppReady = Boolean(_miniObj?.isMiniAppReady ?? false);
   const [selectedCountry, setSelectedCountry] = useState(countries[0]);
+  const [autoCountrySet, setAutoCountrySet] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [amountKes, setAmountKes] = useState("");
   const [validationError, setValidationError] = useState<string>("");
@@ -209,11 +223,11 @@ export default function Home() {
               blockExplorerUrls: ['https://basescan.org'],
             }],
           });
-        } catch (addError: unknown) {
-          console.error('Failed to add Base Mainnet:', addError);
+        } catch (err) {
+          void logToServer('error', 'Failed to add Base Mainnet', { error: String(err) });
         }
       } else {
-        console.error('Failed to switch network:', error);
+        void logToServer('error', 'Failed to switch network', { error: String(error) });
       }
     }
   };
@@ -232,6 +246,7 @@ export default function Home() {
     "TZ": "TZS", 
     "UG": "UGX",
     "RW": "RWF",
+    "ZA": "ZAR",
   };
   
   // Get currency from phone number prefix, not just selected country
@@ -240,6 +255,7 @@ export default function Home() {
     if (phoneWithPrefix.startsWith('+255')) return 'TZ';
     if (phoneWithPrefix.startsWith('+256')) return 'UG';
     if (phoneWithPrefix.startsWith('+250')) return 'RW';
+    if (phoneWithPrefix.startsWith('+27')) return 'ZA';
     return selectedCountry.code;
   };
   
@@ -252,6 +268,26 @@ export default function Home() {
       maybe?.setMiniAppReady?.();
     }
   }, [mini, _isMiniAppReady, _miniObj]);
+
+  useEffect(() => {
+    if (autoCountrySet) return;
+    const fetchGeo = async () => {
+      try {
+        const res = await fetch('/api/geo');
+        if (!res.ok) return;
+        const data = await res.json();
+        const code = (data?.country || '').toUpperCase();
+        const match = countries.find((c) => c.code === code);
+        if (match) {
+          setSelectedCountry(match);
+          setAutoCountrySet(true);
+        }
+      } catch {
+        // Best-effort only
+      }
+    };
+    fetchGeo();
+  }, [autoCountrySet]);
 
   
 
@@ -288,6 +324,7 @@ export default function Home() {
       "UG": { min: 50, max: 200000 },
       "TZ": { min: 500, max: 200000 },
       "RW": { min: 100, max: 40000 },
+      "ZA": { min: 5, max: 65 },
     };
     
     const limit = restrictions[selectedCountry.code] || restrictions["KE"];
@@ -347,7 +384,7 @@ export default function Home() {
     
     if (!airtimeResponse.ok) {
       if (opts?.suppressErrors) {
-        console.warn('Airtime send returned non-200 status (suppressed):', airtimeResponse.status);
+        void logToServer('error', 'Airtime send failed (suppressed)', { status: airtimeResponse.status });
         return null;
       }
       let friendly = 'We are processing your payment. Please wait a moment.';
@@ -444,10 +481,12 @@ export default function Home() {
         });
         
         const result = await sendAirtime(order.orderRef, txHash as string);
+        void logToServer('info', 'EOA tx completed', { orderRef: order.orderRef, txHash });
         return result;
       } catch (error: unknown) {
         // Transform technical errors into user-friendly messages
         const errorMessage = error instanceof Error ? error.message : String(error);
+        void logToServer('error', 'EOA payment failed', { orderRef: order.orderRef, error: errorMessage });
         
         if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
           throw new Error('Transaction cancelled. Please try again when ready to complete the payment.');
@@ -532,8 +571,9 @@ export default function Home() {
       await sendAirtime(order.orderRef, txHash, { suppressErrors: true });
       setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'done' }));
       setValidationError('');
-    } catch (err: unknown) {
-      console.warn('Airtime send error (smart wallet suppressed):', err);
+      void logToServer('info', 'Smart wallet tx completed', { orderRef: order.orderRef, txHash });
+    } catch (err) {
+      void logToServer('error', 'Smart wallet airtime send failed', { orderRef: order.orderRef, error: String(err) });
       setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'done' }));
     }
   }, [order, orderStatus?.status, airtimeSendState, sendAirtime]);
@@ -692,7 +732,7 @@ export default function Home() {
                     ))}
                   </select>
                   <div className={styles.phoneInputWithFlag}>
-                    <span className={styles.flagIcon}>{selectedCountry.code === 'KE' ? '🇰🇪' : selectedCountry.code === 'RW' ? '🇷🇼' : selectedCountry.code === 'UG' ? '🇺🇬' : '🇹🇿'}</span>
+                    <span className={styles.flagIcon}>{selectedCountry.code === 'KE' ? '🇰🇪' : selectedCountry.code === 'RW' ? '🇷🇼' : selectedCountry.code === 'UG' ? '🇺🇬' : selectedCountry.code === 'ZA' ? '🇿🇦' : '🇹🇿'}</span>
                     <input
                       type="tel"
                       placeholder="743913802"
