@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
 
     // Determine country code from phone number (remove + prefix)
     const phoneWithoutPlus = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber;
-    const countryCode = phoneWithoutPlus.substring(0, 3); // e.g., "254" for Kenya
+    const dialingCodes = ["254", "255", "256", "250", "27"]; // KE, TZ, UG, RW, ZA
+    const countryCode = dialingCodes.find((code) => phoneWithoutPlus.startsWith(code)) || "254";
 
     // Currency mapping
     const currencyMap: { [key: string]: string } = {
