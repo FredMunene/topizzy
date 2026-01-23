@@ -243,7 +243,7 @@ export default function Home() {
   const fullPhoneNumber = selectedCountry.prefix + phoneNumber;
   const currencyMap: { [key: string]: string } = {
     "KE": "KES",
-    "TZ": "TZS", 
+    "TZ": "TZS",
     "UG": "UGX",
     "RW": "RWF",
     "ZA": "ZAR",
@@ -251,12 +251,15 @@ export default function Home() {
   
   // Get currency from phone number prefix, not just selected country
   const getPhoneCountryCode = (phoneWithPrefix: string) => {
-    if (phoneWithPrefix.startsWith('+254')) return 'KE';
-    if (phoneWithPrefix.startsWith('+255')) return 'TZ';
-    if (phoneWithPrefix.startsWith('+256')) return 'UG';
-    if (phoneWithPrefix.startsWith('+250')) return 'RW';
-    if (phoneWithPrefix.startsWith('+27')) return 'ZA';
-    return selectedCountry.code;
+    const dialingCodes = [
+      { prefix: '+254', code: 'KE' },
+      { prefix: '+255', code: 'TZ' },
+      { prefix: '+256', code: 'UG' },
+      { prefix: '+250', code: 'RW' },
+      { prefix: '+27', code: 'ZA' },
+    ];
+    const match = dialingCodes.find((entry) => phoneWithPrefix.startsWith(entry.prefix));
+    return match?.code ?? selectedCountry.code;
   };
   
   const phoneCountryCode = getPhoneCountryCode(fullPhoneNumber);
