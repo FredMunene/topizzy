@@ -7,8 +7,34 @@ import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: minikitConfig.miniapp.name,
+    title: {
+      default: "Topizzy — Buy Airtime with USDC on Base",
+      template: "%s | Topizzy",
+    },
     description: minikitConfig.miniapp.description,
+    applicationName: "Topizzy",
+    metadataBase: new URL(minikitConfig.miniapp.homeUrl),
+    alternates: {
+      canonical: minikitConfig.miniapp.homeUrl,
+    },
+    openGraph: {
+      title: minikitConfig.miniapp.ogTitle,
+      description: minikitConfig.miniapp.ogDescription,
+      url: minikitConfig.miniapp.homeUrl,
+      siteName: "Topizzy",
+      images: [{ url: minikitConfig.miniapp.ogImageUrl }],
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: minikitConfig.miniapp.ogTitle,
+      description: minikitConfig.miniapp.ogDescription,
+      images: [minikitConfig.miniapp.ogImageUrl],
+    },
+    robots: {
+      index: true,
+      follow: true,
+    },
     other: {
       "fc:miniapp": JSON.stringify({
         version: minikitConfig.miniapp.version,
@@ -46,6 +72,39 @@ export default function RootLayout({
       <html lang="en">
         <body className={`${inter.variable} ${sourceCodePro.variable}`}>
           <SafeArea>{children}</SafeArea>
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "Organization",
+                name: "Topizzy",
+                url: minikitConfig.miniapp.homeUrl,
+                logo: minikitConfig.miniapp.iconUrl,
+              }),
+            }}
+          />
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "Product",
+                name: "Topizzy Airtime",
+                description: minikitConfig.miniapp.description,
+                brand: "Topizzy",
+                image: minikitConfig.miniapp.heroImageUrl,
+                url: minikitConfig.miniapp.homeUrl,
+                category: "Mobile Airtime",
+                offers: {
+                  "@type": "Offer",
+                  priceCurrency: "USDC",
+                  price: "0",
+                  availability: "https://schema.org/InStock",
+                },
+              }),
+            }}
+          />
         </body>
       </html>
     </RootProvider>
