@@ -1,0 +1,19 @@
+Topizzy
+https://topizzy.xyz/
+
+Summary
+Topizzy lets users buy mobile airtime instantly using USDC on Base.
+
+Key Features
+- Airtime top-ups using USDC on Base
+- Supported countries: Kenya, Uganda, Tanzania, Rwanda, South Africa
+- Wallets: MetaMask (EOA) and Coinbase Smart Wallet (Base App)
+
+Support
+- WhatsApp: +254743913802
+- Telegram: https://t.me/+_doTkG0WfSQzNjFk
+- Twitter: https://x.com/topizzy_
+- Linkedin: https://www.linkedin.com/company/topizzy/
+
+Important Pages
+- https://topizzy.xyz/
