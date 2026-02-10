@@ -20,9 +20,9 @@ export const minikitConfig = {
   },
   miniapp: {
     version: "1",
-    name: "topizzy",
+    name: "Topizzy",
     subtitle: "",
-    description: "",
+    description: "Buy airtime instantly with USDC on Base for Kenya, Uganda, Tanzania, Rwanda, and South Africa.",
     screenshotUrls: [],
     iconUrl: `${ROOT_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/splash.png`,
@@ -32,11 +32,10 @@ export const minikitConfig = {
     primaryCategory: "utility",
     tags: ["example"],
     heroImageUrl: `${ROOT_URL}/hero.png`,
-    tagline: "",
-    ogTitle: "",
-    ogDescription: "",
+    tagline: "Airtime top-ups with USDC on Base",
+    ogTitle: "Topizzy — Buy Airtime with USDC on Base",
+    ogDescription: "Send airtime to Kenya, Uganda, Tanzania, Rwanda, and South Africa using USDC on Base.",
     ogImageUrl: `${ROOT_URL}/hero.png`,
   },
 } as const;
-
 
