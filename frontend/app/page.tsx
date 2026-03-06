@@ -175,6 +175,17 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* CTA Section */}
+      <section className={styles.finalCta}>
+        <div className={styles.sectionContent}>
+          <h2>Ready to get started?</h2>
+          <p>Convert your USDC to airtime in seconds</p>
+          <Link href="/platform" className={styles.primaryButton}>
+            Connect Wallet & Buy Now
+          </Link>
+        </div>
+      </section>
+
 
     </div>
   );
