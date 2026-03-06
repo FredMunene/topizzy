@@ -92,6 +92,40 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* How It Works Section */}
+      <section id="how-it-works" className={styles.howItWorks}>
+        <div className={styles.sectionContent}>
+          <h2 className={styles.sectionTitle}>How It Works</h2>
+          <p className={styles.sectionSubtitle}>Buy Airtime in 3 Easy Steps</p>
+
+          <div className={styles.stepsGrid}>
+            <div className={styles.step}>
+              <div className={styles.stepNumber}>1</div>
+              <h3 className={styles.stepTitle}>Enter Phone Number</h3>
+              <p className={styles.stepDescription}>
+                Enter the phone number you want to recharge
+              </p>
+            </div>
+
+            <div className={styles.step}>
+              <div className={styles.stepNumber}>2</div>
+              <h3 className={styles.stepTitle}>Enter Amount</h3>
+              <p className={styles.stepDescription}>
+                Enter the phone number you want to recharge
+              </p>
+            </div>
+
+            <div className={styles.step}>
+              <div className={styles.stepNumber}>3</div>
+              <h3 className={styles.stepTitle}>Complete Payment</h3>
+              <p className={styles.stepDescription}>
+                Enter the phone number you want to recharge
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
 
     </div>
   );
