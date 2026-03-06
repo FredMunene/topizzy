@@ -186,7 +186,29 @@ export default function LandingPage() {
         </div>
       </section>
 
-
+      {/* Footer */}
+      <footer className={styles.footer}>
+        <div className={styles.sectionContent}>
+          <div className={styles.footerContent}>
+            <div className={styles.footerSection}>
+              <h4>About Topizzy</h4>
+              <p>The easiest way to buy airtime with crypto</p>
+            </div>
+            <div className={styles.footerSection}>
+              <h4>Support</h4>
+              <a href="https://wa.me/254743913802" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+            </div>
+            <div className={styles.footerSection}>
+              <h4>Legal</h4>
+              <a href="#privacy">Privacy Policy</a>
+              <a href="#terms">Terms of Service</a>
+            </div>
+          </div>
+          <div className={styles.footerBottom}>
+            <p>&copy; 2024 Topizzy. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
