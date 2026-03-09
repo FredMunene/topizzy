@@ -1,0 +1,650 @@
+.landingContainer {
+  min-height: 100vh;
+  background: #f0e8ff;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  padding-top: 60px;
+}
+
+/* Header */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(240, 232, 255, 0.98);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e5d9ff;
+  padding: 1rem 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.headerContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #333;
+  text-decoration: none;
+}
+
+.logo img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.navLink {
+  color: #333;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.navLink:hover {
+  color: #8b75d8;
+}
+
+.ctaButton {
+  padding: 0.625rem 1.25rem;
+  background: #8b75d8;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: inline-block;
+}
+
+.ctaButton:hover {
+  background: #7d6bce;
+  transform: translateY(-2px);
+}
+
+.hamburger {
+  display: none;
+  flex-direction: column;
+  background: none;
+  border: none;
+  cursor: pointer;
+  gap: 0.35rem;
+  padding: 0.5rem;
+}
+
+.hamburger span {
+  width: 25px;
+  height: 3px;
+  background: #333;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+/* Hero Section */
+.hero {
+  background: linear-gradient(135deg, #f0e8ff 0%, #e8dcf5 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: 4rem 1rem;
+  scroll-margin-top: 60px;
+}
+
+.heroContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  align-items: center;
+}
+
+/* placeholder while image loads */
+.imagePlaceholder {
+  width: 600px;
+  height: 480px;
+  background: #ddd;
+  border-radius: 8px;
+}
+
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.heroTitle {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #1a1a1a;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.heroSubtitle {
+  font-size: 1.125rem;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.heroButtons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.primaryButton {
+  padding: 1rem 2rem;
+  background: #8b75d8;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.2s;
+  display: inline-block;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+}
+
+.primaryButton:hover {
+  background: #7d6bce;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(139, 117, 216, 0.3);
+}
+
+.networks {
+  margin-top: 1rem;
+}
+
+.networksLabel {
+  font-size: 0.875rem;
+  color: #666;
+  margin: 0 0 1rem 0;
+  font-weight: 500;
+}
+
+.networkLogos {
+  display: flex;
+  gap: 5rem;
+  flex-wrap: wrap;
+  background: white;
+  padding: 0.5rem;
+  border-radius: 8px;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.networkLogo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  font-weight: 500;
+}
+
+.networkLogo img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+}
+
+.heroImage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.heroImage img {
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  object-fit: contain;
+}
+
+.phoneFrame {
+  width: 100%;
+  max-width: 280px;
+  perspective: 1000px;
+  display: none;
+}
+
+.deviceMockup {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9/19;
+  background: #000;
+  border-radius: 40px;
+  padding: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  border: 8px solid #111;
+}
+
+.notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150px;
+  height: 28px;
+  background: #000;
+  border-radius: 0 0 25px 25px;
+  z-index: 10;
+}
+
+.screen {
+  width: 100%;
+  height: 100%;
+  background: #f9fafb;
+  border-radius: 35px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.screenContent {
+  flex: 1;
+  padding: 2rem 1rem 1rem;
+  overflow-y: auto;
+}
+
+.screenTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 1.5rem 0;
+  text-align: center;
+}
+
+.formDemo {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #666;
+}
+
+.field input {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: #fff;
+  color: #999;
+}
+
+.demoButton {
+  padding: 0.6rem;
+  background: #8b75d8;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: not-allowed;
+  opacity: 0.7;
+  margin-top: 0.5rem;
+}
+
+.homeBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: #000;
+  border-radius: 50%;
+  margin: 8px auto;
+  width: 100px;
+}
+
+/* Sections */
+.sectionContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.sectionTitle {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #1a1a1a;
+  margin: 0 0 0.5rem 0;
+  text-align: center;
+}
+
+.sectionSubtitle {
+  font-size: 1.125rem;
+  color: #666;
+  text-align: center;
+  margin: 0 0 3rem 0;
+}
+
+/* How It Works */
+.howItWorks {
+  padding: 5rem 1rem;
+  background: #fff;
+}
+
+.stepsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+}
+
+.step {
+  text-align: center;
+  padding: 2rem;
+  background: #f9f9f9;
+  border-radius: 12px;
+  transition: all 0.3s;
+}
+
+.step:hover {
+  background: #f5f0ff;
+  transform: translateY(-4px);
+}
+
+.stepNumber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  background: #8b75d8;
+  color: white;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin: 0 auto 1rem;
+}
+
+.stepTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 0.75rem 0;
+}
+
+.stepDescription {
+  font-size: 0.9375rem;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Features */
+.features {
+  padding: 5rem 1rem;
+  background: linear-gradient(135deg, #e8dcf5 0%, #f0e8ff 100%);
+}
+
+.featuresList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 2rem;
+}
+
+.featureItem {
+  text-align: center;
+}
+
+.featureIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: #8b75d8;
+  color: white;
+  border-radius: 50%;
+  margin: 0 auto 1rem;
+}
+
+.featureItem h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 0.5rem 0;
+}
+
+.featureItem p {
+  font-size: 0.9375rem;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Final CTA */
+.finalCta {
+  padding: 5rem 1rem;
+  background: linear-gradient(135deg, #8b75d8 0%, #7d6bce 100%);
+  text-align: center;
+}
+
+.finalCta h2 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 0.5rem 0;
+}
+
+.finalCta p {
+  font-size: 1.125rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 2rem 0;
+}
+
+.finalCta .primaryButton {
+  background: white;
+  color: #8b75d8;
+}
+
+.finalCta .primaryButton:hover {
+  background: #f5f5f5;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Footer */
+.footer {
+  padding: 3rem 1rem;
+  background: #1a1a1a;
+  color: #ccc;
+}
+
+.footerContent {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+  min-height: auto;
+}
+
+.footerSection h4 {
+  color: white;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  font-size: 0.9375rem;
+}
+
+.footerSection p {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.875rem;
+}
+
+.footerSection a {
+  display: block;
+  color: #999;
+  text-decoration: none;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  transition: color 0.2s;
+}
+
+.footerSection a:hover {
+  color: #8b75d8;
+}
+
+.footerBottom {
+  padding-top: 2rem;
+  border-top: 1px solid #333;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+.footerBottom p {
+  margin: 0;
+  color: #999;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .nav {
+    position: absolute;
+    top: 60px;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    background: #f0e8ff;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    gap: 1rem;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s;
+  }
+
+  .navOpen {
+    max-height: 400px;
+  }
+
+  .hamburger {
+    display: flex;
+  }
+
+  .heroContent {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .heroTitle {
+    font-size: 2rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1rem;
+  }
+
+  .sectionTitle {
+    font-size: 1.75rem;
+  }
+
+  .sectionSubtitle {
+    font-size: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .stepsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .featuresList {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .finalCta h2 {
+    font-size: 1.75rem;
+  }
+
+  .finalCta p {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .headerContent {
+    padding: 0 1rem;
+  }
+
+  .logo {
+    font-size: 1rem;
+  }
+
+  .hero {
+    padding: 2rem 1rem 3rem;
+    min-height: auto;
+  }
+
+  .heroTitle {
+    font-size: 1.5rem;
+  }
+
+  .heroSubtitle {
+    font-size: 0.9375rem;
+  }
+
+  .primaryButton {
+    padding: 0.875rem 1.5rem;
+    font-size: 0.9375rem;
+  }
+
+  .networkLogos {
+    gap: 1rem;
+  }
+
+  .phoneFrame {
+    max-width: 220px;
+  }
+
+  .sectionTitle {
+    font-size: 1.5rem;
+  }
+
+  .featuresList {
+    grid-template-columns: 1fr;
+  }
+
+  .finalCta h2 {
+    font-size: 1.5rem;
+  }
+
+  .footer {
+    padding: 2rem 1rem;
+  }
+
+  .footerContent {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
