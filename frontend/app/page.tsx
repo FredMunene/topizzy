@@ -74,6 +74,22 @@ export default function LandingPage() {
                     height={80}
                   />
                 </div>
+                <div className={styles.networkLogo}>
+                  <Image
+                    src="/vodacomLogo.png"
+                    alt="Vodacom Logo"
+                    width={80}
+                    height={80}
+                  />
+                </div>
+                <div className={styles.networkLogo}>
+                  <Image
+                    src="/mtnLogo.png"
+                    alt="MTN Logo"
+                    width={80}
+                    height={80}
+                  />
+                </div>
               </div>
               <p className={styles.networksLabel}>Works with all mobile networks</p>
             </div>
