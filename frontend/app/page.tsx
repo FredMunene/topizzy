@@ -96,14 +96,25 @@ export default function LandingPage() {
           </div>
 
           <div className={styles.heroImage}>
-            <Image
-              src="/hero-landing.png"
-              alt="Topizzy Landing Hero"
-              width={600}
-              height={480}
-              priority
-              style={{ objectFit: 'contain' }}
-            />
+            <div className={styles.imageWrapper}>
+              <Image
+                src="/circleBg.png"
+                alt="Circle background"
+                width={800}
+                height={800}
+                className={styles.circleBg}
+                priority
+              />
+              <Image
+                src="/hero-landing.png"
+                alt="Topizzy Landing Hero"
+                width={800}
+                height={680}
+                className={styles.mainHero}
+                priority
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
           </div>
         </div>
       </section>
