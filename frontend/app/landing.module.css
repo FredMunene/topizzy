@@ -215,6 +215,34 @@
   width: 100%;
 }
 
+/* wrapper for layering circle background and hero graphic */
+.imageWrapper {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.circleBg {
+  position: absolute;
+  width: 140%;
+  height: auto;
+  top: 60%;
+  left: -10%;
+  transform: translateY(-50%);
+  z-index: 1;
+}
+
+.mainHero {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+}
+
 .heroImage img {
   width: 100%;
   max-width: 600px;
@@ -556,6 +584,11 @@
   .heroContent {
     grid-template-columns: 1fr;
     gap: 2rem;
+  }
+
+  .circleBg {
+    width: 200%;
+    left: -40%;
   }
 
   .heroTitle {
