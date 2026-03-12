@@ -108,8 +108,8 @@ export default function LandingPage() {
               <Image
                 src="/hero-landing.png"
                 alt="Topizzy Landing Hero"
-                width={800}
-                height={680}
+                width={1000}
+                height={850}
                 className={styles.mainHero}
                 priority
                 style={{ objectFit: 'contain' }}
