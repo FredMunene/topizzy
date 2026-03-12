@@ -241,6 +241,8 @@
   width: 100%;
   max-width: 600px;
   height: auto;
+  transform: translateX(30%);
+  z-index: 2;
 }
 
 .heroImage img {
@@ -589,6 +591,10 @@
   .circleBg {
     width: 200%;
     left: -40%;
+  }
+
+  .mainHero {
+    width: 70%;
   }
 
   .heroTitle {
