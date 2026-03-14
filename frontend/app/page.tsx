@@ -127,6 +127,11 @@ export default function LandingPage() {
 
           <div className={styles.stepsGrid}>
             <div className={styles.step}>
+              <div className={styles.stepIcon}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" aria-hidden="true">
+                  <path d="M7 2C5.9 2 5 2.9 5 4v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2H7zm5 19c-2.76 0-5-2.24-5-5V8c0-2.76 2.24-5 5-5s5 2.24 5 5v8c0 2.76-2.24 5-5 5z"/>
+                </svg>
+              </div>
               <div className={styles.stepNumber}>1</div>
               <h3 className={styles.stepTitle}>Enter Phone Number</h3>
               <p className={styles.stepDescription}>
@@ -135,18 +140,28 @@ export default function LandingPage() {
             </div>
 
             <div className={styles.step}>
+              <div className={styles.stepIcon}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" aria-hidden="true">
+                  <path d="M9 11l3 3L22 4l-1.41-1.41L12 11.17 6.41 5.59 5 7l4 4z"/>
+                </svg>
+              </div>
               <div className={styles.stepNumber}>2</div>
               <h3 className={styles.stepTitle}>Enter Amount</h3>
               <p className={styles.stepDescription}>
-                Enter the phone number you want to recharge
+                Choose the amount in your desired currency for the top-up
               </p>
             </div>
 
             <div className={styles.step}>
+              <div className={styles.stepIcon}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24" aria-hidden="true">
+                  <path d="M21 7H3C1.9 7 1 7.9 1 9v10c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zm0 12H3V9h18v10zm-9-3H6v-2h6v2zm9-4h-7V9h7v3z"/>
+                </svg>
+              </div>
               <div className={styles.stepNumber}>3</div>
-              <h3 className={styles.stepTitle}>Complete Payment</h3>
+              <h3 className={styles.stepTitle}>Pay with USDC</h3>
               <p className={styles.stepDescription}>
-                Enter the phone number you want to recharge
+                Connect your crypto wallet and pay securely in USDC
               </p>
             </div>
           </div>
