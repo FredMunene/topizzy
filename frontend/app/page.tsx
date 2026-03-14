@@ -168,51 +168,88 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Why Use Topizzy Section */}
       <section className={styles.features}>
         <div className={styles.sectionContent}>
-          <h2 className={styles.sectionTitle}>Why Choose Topizzy?</h2>
+          <h2 className={styles.sectionTitle}>Why Use Topizzy?</h2>
 
-          <div className={styles.featuresList}>
-            <div className={styles.featureItem}>
-              <div className={styles.featureIcon}>
-                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          <div className={styles.whyGrid}>
+            <div className={styles.decorCircle} aria-hidden="true" />
+            <div className={styles.decorCircleSmall} aria-hidden="true" />
+
+            <svg
+              className={styles.pathSvg}
+              viewBox="0 0 1200 400"
+              aria-hidden="true"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <marker
+                  id="arrow"
+                  markerWidth="10"
+                  markerHeight="10"
+                  refX="7"
+                  refY="5"
+                  orient="auto"
+                >
+                  <path d="M0,0 L10,5 L0,10" fill="rgba(99,102,241,0.5)" />
+                </marker>
+              </defs>
+              <path
+                d="M 120 340 C 360 330 500 210 680 240 S 960 260 1060 120"
+                fill="none"
+                stroke="rgba(99,102,241,0.45)"
+                strokeWidth="10"
+                strokeLinecap="round"
+                markerEnd="url(#arrow)"
+              />
+            </svg>
+
+            <div className={`${styles.whyItem} ${styles.item1}`}>
+              <div className={styles.whyIcon}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zM12 17c-2.76 0-5-2.24-5-5V8.5l5-2.22 5 2.22V12c0 2.76-2.24 5-5 5z"/>
                 </svg>
               </div>
-              <h3>Instant Top-Up</h3>
-              <p>Delivered in seconds</p>
+              <h3>Simple &amp; Secure</h3>
+              <p>Use your crypto wallet to buy airtime securely</p>
             </div>
 
-            <div className={styles.featureItem}>
-              <div className={styles.featureIcon}>
-                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-                  <path d="M18 8h-1V6c0-2.76-2.24-5-5-5s-5 2.24-5 5v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+            <div className={`${styles.whyItem} ${styles.item2}`}>
+              <div className={styles.whyIcon}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                  <path d="M13 2H6c-1.1 0-2 .9-2 2v16l4-4h5c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 12H8l-2 2V4h7v10zm8-7h-5v2h5v11H7v2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2z"/>
                 </svg>
               </div>
-              <h3>Secure Payment</h3>
-              <p>With blockchain verification</p>
+              <h3>Fast Delivery</h3>
+              <p>Top up instantly 24/7 with no delays.</p>
             </div>
 
-            <div className={styles.featureItem}>
-              <div className={styles.featureIcon}>
-                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            <div className={`${styles.whyItem} ${styles.item3}`}>
+              <div className={styles.whyIcon}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 2.5 1.46 4.66 3.62 5.8L10 22l2-2h3c3.87 0 7-3.13 7-7s-3.13-7-7-7zm0 12c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
+                  <circle cx="12" cy="9" r="2" fill="white" opacity="0.9" />
                 </svg>
               </div>
-              <h3>24/7 Support</h3>
-              <p>Help whenever you need it</p>
+              <h3>ALL Networks Supported</h3>
+              <p>Works with Safaricom, Airtel, MTN, Vodacom and more</p>
             </div>
 
-            <div className={styles.featureItem}>
-              <div className={styles.featureIcon}>
-                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+            <div className={`${styles.whyItem} ${styles.item4}`}>
+              <div className={styles.whyIcon}>
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                  <path d="M20 7h-3V5c0-1.1-.9-2-2-2H9C7.9 3 7 3.9 7 5v2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zm-8 9c-1.66 0-3-1.34-3-3 0-1.3.84-2.4 2-2.82V11h2v-.82c1.16.42 2 1.52 2 2.82 0 1.66-1.34 3-3 3z"/>
                 </svg>
               </div>
-              <h3>Available 24/7</h3>
-              <p>Day or night</p>
+              <h3>No Banks or Cards</h3>
+              <p>Just your wallet and phone number: it&apos;s that easy</p>
             </div>
+
+            <div className={`${styles.stepBadge} ${styles.step1}`}>01</div>
+            <div className={`${styles.stepBadge} ${styles.step2}`}>02</div>
+            <div className={`${styles.stepBadge} ${styles.step3}`}>03</div>
+            <div className={`${styles.stepBadge} ${styles.step4}`}>04</div>
           </div>
         </div>
       </section>
