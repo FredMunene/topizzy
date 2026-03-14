@@ -257,10 +257,10 @@ export default function LandingPage() {
       {/* CTA Section */}
       <section className={styles.finalCta}>
         <div className={styles.sectionContent}>
-          <h2>Ready to get started?</h2>
-          <p>Convert your USDC to airtime in seconds</p>
-          <Link href="/platform" className={styles.primaryButton}>
-            Connect Wallet & Buy Now
+          <h2>Ready to Top Up with Crypto?</h2>
+          <p className={styles.ctaSubtitle}>Turn your USDC into airtime in seconds.<br />Works with all Kenya networks</p>
+          <Link href="/platform" className={styles.ctaButton}>
+            Get Started Now
           </Link>
         </div>
       </section>
