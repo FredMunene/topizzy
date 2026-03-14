@@ -267,24 +267,56 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className={styles.footer}>
-        <div className={styles.sectionContent}>
-          <div className={styles.footerContent}>
-            <div className={styles.footerSection}>
-              <h4>About Topizzy</h4>
-              <p>The easiest way to buy airtime with crypto</p>
+        <div className={styles.footerInner}>
+          <div className={styles.footerTop}>
+            <div className={styles.footerBrand}>
+              <div className={styles.footerLogo}>
+                <Image src="/logo.png" alt="Topizzy Logo" width={40} height={40} />
+              </div>
+              <div>
+                <div className={styles.footerBrandName}>Topizzy</div>
+                <div className={styles.footerTagline}>Turn crypto into mobile airtime instantly</div>
+                <div className={styles.footerSocial}>
+                  <a href="https://wa.me/254743913802" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+                    <Image src="/whatsappLogo.png" alt="WhatsApp" width={24} height={24} />
+                  </a>
+                  <a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="X">
+                    <Image src="/xLogo.png" alt="X" width={24} height={24} />
+                  </a>
+                </div>
+              </div>
             </div>
-            <div className={styles.footerSection}>
-              <h4>Support</h4>
-              <a href="https://wa.me/254743913802" target="_blank" rel="noopener noreferrer">WhatsApp</a>
-            </div>
-            <div className={styles.footerSection}>
-              <h4>Legal</h4>
-              <a href="#privacy">Privacy Policy</a>
-              <a href="#terms">Terms of Service</a>
+
+            <div className={styles.footerLinks}>
+              <div className={styles.footerColumn}>
+                <div className={styles.columnTitle}>Product</div>
+                <a href="#">Buy Airtime</a>
+                <a href="#">Download App</a>
+              </div>
+              <div className={styles.footerColumn}>
+                <div className={styles.columnTitle}>Company</div>
+                <a href="#">Benefits</a>
+                <a href="#">Contact</a>
+              </div>
+              <div className={styles.footerColumn}>
+                <div className={styles.columnTitle}>Resources</div>
+                <a href="#how-it-works">How it Works</a>
+                <a href="#faq">FAQs</a>
+              </div>
+              <div className={styles.footerColumn}>
+                <div className={styles.columnTitle}>Customer Support</div>
+                <a href="#">Help Center</a>
+                <a href="#">Security Tips</a>
+              </div>
             </div>
           </div>
+
           <div className={styles.footerBottom}>
-            <p>&copy; 2024 Topizzy. All rights reserved.</p>
+            <p>&copy; 2025 Topizzy. All rights reserved.</p>
+            <div className={styles.footerLegal}>
+              <a href="#terms">Terms &amp; Conditions</a>
+              <a href="#privacy">Privacy Policy</a>
+            </div>
           </div>
         </div>
       </footer>
