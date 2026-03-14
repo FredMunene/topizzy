@@ -448,46 +448,161 @@
   margin: 0;
 }
 
-/* Features */
+/* Why Use Topizzy */
 .features {
   padding: 5rem 1rem;
-  background: linear-gradient(135deg, #e8dcf5 0%, #f0e8ff 100%);
+  background: #FFFFFF;
 }
 
-.featuresList {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 2rem;
+.whyGrid {
+  position: relative;
+  min-height: 520px;
+  padding: 3rem 0;
 }
 
-.featureItem {
-  text-align: center;
+.decorCircle,
+.decorCircleSmall {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(139, 117, 216, 0.16);
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.35) 75%, transparent 75%, transparent);
+  background-size: 24px 24px;
+  filter: blur(0.5px);
+  pointer-events: none;
 }
 
-.featureIcon {
+.decorCircle {
+  width: 320px;
+  height: 320px;
+  top: -40px;
+  left: -40px;
+}
+
+.decorCircleSmall {
+  width: 260px;
+  height: 260px;
+  bottom: -50px;
+  right: -30px;
+}
+
+.pathSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.whyItem {
+  position: relative;
+  background: transparent;
+  border-radius: 0;
+  padding: 0.5rem 0;
+  box-shadow: none;
+  border: none;
+  z-index: 2;
+  max-width: 320px;
+}
+
+.whyItem h3 {
+  font-size: 1.25rem;
+  margin: 0 0 0.25rem 0;
+}
+
+.whyItem p {
+  margin: 0;
+  color: #000000;
+  line-height: 1.5;
+}
+
+.whyItem h3 {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem 0;
+  color: #000000;
+  font-weight: bold;
+
+}
+
+.whyItem p {
+  margin: 0;
+  color: #000000;
+  line-height: 1.5;
+}
+
+.whyIcon {
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  background: #8b75d8;
-  color: white;
+  background: rgba(139, 117, 216, 0.16);
   border-radius: 50%;
-  margin: 0 auto 1rem;
+  color: #5643c3;
+  margin-bottom: 1rem;
 }
 
-.featureItem h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0 0 0.5rem 0;
+.item1 {
+  position: absolute;
+  bottom: 70px;
+  left: 60px;
+  width: 320px;
 }
 
-.featureItem p {
-  font-size: 0.9375rem;
-  color: #666;
-  line-height: 1.6;
-  margin: 0;
+.item2 {
+  position: absolute;
+  top: 200px;
+  left: 340px;
+  width: 320px;
+}
+
+.item3 {
+  position: absolute;
+  top: 100px;
+  right: 280px;
+  width: 320px;
+}
+
+.item4 {
+  position: absolute;
+  top: 30px;
+  right: 2px;
+  width: 320px;
+}
+
+.stepBadge {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  z-index: 3;
+}
+
+.step1 {
+  bottom: 1.25rem;
+  left: 3.5rem;
+}
+
+.step2 {
+  top: 21.25rem;
+  left: 21rem;
+}
+
+.step3 {
+  top: 16rem;
+  right: 34rem;
+}
+
+.step4 {
+  top: 11.5rem;
+  right: 16.5rem;
 }
 
 /* Final CTA */
@@ -632,8 +747,28 @@
     grid-template-columns: 1fr;
   }
 
-  .featuresList {
-    grid-template-columns: 1fr 1fr;
+  .whyGrid {
+    min-height: auto;
+    padding: 2rem 0;
+  }
+
+  .decorCircle,
+  .decorCircleSmall {
+    display: none;
+  }
+
+  .whyItem {
+    position: static;
+    width: auto;
+    box-shadow: 0 16px 28px rgba(0, 0, 0, 0.05);
+  }
+
+  .pathSvg {
+    display: none;
+  }
+
+  .stepBadge {
+    display: none;
   }
 
   .finalCta h2 {
@@ -684,8 +819,18 @@
     font-size: 1.5rem;
   }
 
-  .featuresList {
+  .whyGrid {
     grid-template-columns: 1fr;
+    grid-template-rows: repeat(4, auto);
+    gap: 1.75rem;
+    padding: 2.5rem 0;
+  }
+
+  .item1,
+  .item2,
+  .item3,
+  .item4 {
+    justify-self: center;
   }
 
   .finalCta h2 {
