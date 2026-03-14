@@ -384,7 +384,7 @@
 /* How It Works */
 .howItWorks {
   padding: 5rem 1rem;
-  background: #fff;
+  background: linear-gradient(180deg, #C0C0F8 0%, #E1E1FE 100%);
 }
 
 .stepsGrid {
@@ -395,28 +395,42 @@
 
 .step {
   text-align: center;
-  padding: 2rem;
-  background: #f9f9f9;
-  border-radius: 12px;
+  padding: 2.5rem 2rem;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 16px;
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(139, 117, 216, 0.15);
   transition: all 0.3s;
 }
 
 .step:hover {
-  background: #f5f0ff;
+  background: rgba(255, 255, 255, 0.95);
   transform: translateY(-4px);
+}
+
+.stepIcon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: rgba(139, 117, 216, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8b75d8;
 }
 
 .stepNumber {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 50px;
-  height: 50px;
+  width: 42px;
+  height: 42px;
   background: #8b75d8;
   color: white;
   border-radius: 50%;
   font-weight: 700;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   margin: 0 auto 1rem;
 }
 
