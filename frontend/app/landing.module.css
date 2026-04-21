@@ -646,136 +646,147 @@
 
 /* Footer */
 .footer {
-  padding: 4rem 1rem;
-  background: #FFFFFF;
+  padding: 5rem 1rem 3rem;
+  background: #5057A7;
+  color: white;
 }
 
 .footerInner {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 3.5rem 2rem;
-  border-radius: 32px;
-  background: #D9D9FF;
-  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.08);
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .footerTop {
   display: flex;
   flex-wrap: wrap;
-  gap: 2.5rem;
+  gap: 4rem;
   justify-content: space-between;
   align-items: flex-start;
+  margin-bottom: 4rem;
 }
 
 .footerBrand {
-  flex: 1 1 280px;
+  flex: 1 1 300px;
   display: flex;
-  gap: 1.25rem;
+  flex-direction: column;
+  gap: 1.5rem;
   align-items: flex-start;
-  min-width: 250px;
+}
+
+.footerBrandHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .footerLogo {
-  width: 52px;
-  height: 52px;
-  border-radius: 18px;
-  background: rgba(92, 76, 224, 0.12);
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
+  background: transparent;
 }
 
 .footerBrandName {
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  color: #14141f;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -0.01em;
 }
 
 .footerTagline {
-  font-size: 0.95rem;
-  color: rgba(20, 20, 31, 0.7);
-  margin-top: 0.35rem;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  max-width: 240px;
+  line-height: 1.4;
 }
 
 .footerSocial {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
 .footerSocial a {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: rgba(92, 76, 224, 0.12);
-  display: grid;
-  place-items: center;
-  color: rgba(92, 76, 224, 1);
-  transition: transform 0.2s ease, background 0.2s ease;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  overflow: hidden;
+  transition: transform 0.2s ease;
 }
 
 .footerSocial a:hover {
   transform: translateY(-2px);
-  background: rgba(92, 76, 224, 0.18);
 }
 
 .footerLinks {
   display: grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr));
-  gap: 2rem;
-  flex: 2 1 520px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 3rem;
+  flex: 2 1 600px;
 }
 
 .footerColumn {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .columnTitle {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: #1b1b2c;
-  margin-bottom: 0.75rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 0.5rem;
 }
 
 .footerColumn a {
-  color: rgba(27, 27, 44, 0.8);
+  color: rgba(255, 255, 255, 0.85);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 1rem;
   transition: color 0.2s ease;
 }
 
 .footerColumn a:hover {
-  color: rgba(92, 76, 224, 1);
+  color: white;
+  text-decoration: underline;
+}
+
+.footerDivider {
+  border: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+  margin-bottom: 2rem;
 }
 
 .footerBottom {
-  margin-top: 3rem;
-  padding-top: 2rem;
-  border-top: 1px solid rgba(92, 76, 224, 0.25);
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1rem;
-  font-size: 0.875rem;
-  color: rgba(27, 27, 44, 0.7);
+  gap: 1.5rem;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .footerLegal {
   display: flex;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
 .footerLegal a {
-  color: rgba(27, 27, 44, 0.66);
+  color: rgba(255, 255, 255, 0.9);
   text-decoration: none;
   transition: color 0.2s ease;
 }
 
 .footerLegal a:hover {
-  color: rgba(27, 27, 44, 0.9);
+  color: white;
 }
 
 /* Responsive */
