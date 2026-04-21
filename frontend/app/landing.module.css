@@ -3,7 +3,7 @@
   background: #f0e8ff;
   overflow-x: hidden;
   scroll-behavior: smooth;
-  padding-top: 60px;
+  padding-top: 100px;
 }
 
 /* Header */
@@ -40,8 +40,8 @@
 }
 
 .logo img {
-  width: 32px;
-  height: 32px;
+  width: 56px;
+  height: 56px;
   object-fit: contain;
 }
 
@@ -683,8 +683,8 @@
 }
 
 .footerLogo {
-  width: 48px;
-  height: 48px;
+  width: 80px;
+  height: 80px;
   display: grid;
   place-items: center;
   background: transparent;
