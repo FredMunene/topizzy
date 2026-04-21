@@ -179,7 +179,7 @@ export default function LandingPage() {
 
             <svg
               className={styles.pathSvg}
-              viewBox="0 0 1200 400"
+              viewBox="0 0 1200 800"
               aria-hidden="true"
               preserveAspectRatio="none"
             >
@@ -192,14 +192,33 @@ export default function LandingPage() {
                   refY="5"
                   orient="auto"
                 >
-                  <path d="M0,0 L10,5 L0,10" fill="rgba(99,102,241,0.5)" />
+                  <path d="M0,0 L10,5 L0,10" fill="rgba(124, 134, 255, 0.5)" />
                 </marker>
               </defs>
+              {/* Arrow 1: Item 1 to Item 2 */}
               <path
-                d="M 120 340 C 360 330 500 210 680 240 S 960 260 1060 120"
+                d="M 150 760 Q 250 800 350 590"
                 fill="none"
-                stroke="rgba(99,102,241,0.45)"
-                strokeWidth="10"
+                stroke="rgba(124, 134, 255, 0.4)"
+                strokeWidth="4"
+                strokeLinecap="round"
+                markerEnd="url(#arrow)"
+              />
+              {/* Arrow 2: Item 2 to Item 3 */}
+              <path
+                d="M 450 568 Q 550 608 650 398"
+                fill="none"
+                stroke="rgba(124, 134, 255, 0.4)"
+                strokeWidth="4"
+                strokeLinecap="round"
+                markerEnd="url(#arrow)"
+              />
+              {/* Arrow 3: Item 3 to Item 4 */}
+              <path
+                d="M 750 368 Q 820 408 950 224"
+                fill="none"
+                stroke="rgba(124, 134, 255, 0.4)"
+                strokeWidth="4"
                 strokeLinecap="round"
                 markerEnd="url(#arrow)"
               />
@@ -208,42 +227,49 @@ export default function LandingPage() {
             <div className={`${styles.whyItem} ${styles.item1}`}>
               <div className={styles.whyIcon}>
                 <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                  <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zM12 17c-2.76 0-5-2.24-5-5V8.5l5-2.22 5 2.22V12c0 2.76-2.24 5-5 5z"/>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
               </div>
-              <h3>Simple &amp; Secure</h3>
-              <p>Use your crypto wallet to buy airtime securely</p>
+              <div className={styles.whyItemText}>
+                <h3>Simple &amp; Secure</h3>
+                <p>Use your crypto wallet to buy airtime securely</p>
+              </div>
             </div>
 
             <div className={`${styles.whyItem} ${styles.item2}`}>
               <div className={styles.whyIcon}>
                 <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                  <path d="M13 2H6c-1.1 0-2 .9-2 2v16l4-4h5c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 12H8l-2 2V4h7v10zm8-7h-5v2h5v11H7v2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2z"/>
+                  <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
                 </svg>
               </div>
-              <h3>Fast Delivery</h3>
-              <p>Top up instantly 24/7 with no delays.</p>
+              <div className={styles.whyItemText}>
+                <h3>Fast Delivery</h3>
+                <p>Top up instantly 24/7 with no delays.</p>
+              </div>
             </div>
 
             <div className={`${styles.whyItem} ${styles.item3}`}>
               <div className={styles.whyIcon}>
                 <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 2.5 1.46 4.66 3.62 5.8L10 22l2-2h3c3.87 0 7-3.13 7-7s-3.13-7-7-7zm0 12c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-                  <circle cx="12" cy="9" r="2" fill="white" opacity="0.9" />
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
                 </svg>
               </div>
-              <h3>ALL Networks Supported</h3>
-              <p>Works with Safaricom, Airtel, MTN, Vodacom and more</p>
+              <div className={styles.whyItemText}>
+                <h3>ALL Networks Supported</h3>
+                <p>Works with Safaricom, Airtel, MTN, Vodacom and more</p>
+              </div>
             </div>
 
             <div className={`${styles.whyItem} ${styles.item4}`}>
               <div className={styles.whyIcon}>
                 <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                  <path d="M20 7h-3V5c0-1.1-.9-2-2-2H9C7.9 3 7 3.9 7 5v2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2zm-8 9c-1.66 0-3-1.34-3-3 0-1.3.84-2.4 2-2.82V11h2v-.82c1.16.42 2 1.52 2 2.82 0 1.66-1.34 3-3 3z"/>
+                  <path d="M21 4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H3V6h18v12zm-9-7c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
                 </svg>
               </div>
-              <h3>No Banks or Cards</h3>
-              <p>Just your wallet and phone number: it&apos;s that easy</p>
+              <div className={styles.whyItemText}>
+                <h3>No Banks or Cards</h3>
+                <p>Just your wallet and phone number: it&apos;s that easy</p>
+              </div>
             </div>
 
             <div className={`${styles.stepBadge} ${styles.step1}`}>01</div>
