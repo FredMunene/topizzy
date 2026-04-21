@@ -270,20 +270,20 @@ export default function LandingPage() {
         <div className={styles.footerInner}>
           <div className={styles.footerTop}>
             <div className={styles.footerBrand}>
-              <div className={styles.footerLogo}>
-                <Image src="/logo.png" alt="Topizzy Logo" width={40} height={40} />
-              </div>
-              <div>
-                <div className={styles.footerBrandName}>Topizzy</div>
-                <div className={styles.footerTagline}>Turn crypto into mobile airtime instantly</div>
-                <div className={styles.footerSocial}>
-                  <a href="https://wa.me/254743913802" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
-                    <Image src="/whatsappLogo.png" alt="WhatsApp" width={24} height={24} />
-                  </a>
-                  <a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="X">
-                    <Image src="/xLogo.png" alt="X" width={24} height={24} />
-                  </a>
+              <div className={styles.footerBrandHeader}>
+                <div className={styles.footerLogo}>
+                  <Image src="/logo.png" alt="Topizzy Logo" width={40} height={40} />
                 </div>
+                <div className={styles.footerBrandName}>Topizzy</div>
+              </div>
+              <div className={styles.footerTagline}>Turn crypto into mobile airtime instantly</div>
+              <div className={styles.footerSocial}>
+                <a href="https://wa.me/254743913802" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+                  <Image src="/whatsappLogo.png" alt="WhatsApp" width={32} height={32} />
+                </a>
+                <a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="X">
+                  <Image src="/xLogo.png" alt="X" width={32} height={32} />
+                </a>
               </div>
             </div>
 
@@ -311,8 +311,10 @@ export default function LandingPage() {
             </div>
           </div>
 
+          <hr className={styles.footerDivider} />
+
           <div className={styles.footerBottom}>
-            <p>&copy; 2025 Topizzy. All rights reserved.</p>
+            <p>&copy; 2024 Topizzy. All rights reserved.</p>
             <div className={styles.footerLegal}>
               <a href="#terms">Terms &amp; Conditions</a>
               <a href="#privacy">Privacy Policy</a>
