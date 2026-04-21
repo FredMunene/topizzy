@@ -456,33 +456,39 @@
 
 .whyGrid {
   position: relative;
-  min-height: 520px;
-  padding: 3rem 0;
+  min-height: 700px;
+  padding: 5rem 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .decorCircle,
 .decorCircleSmall {
   position: absolute;
   border-radius: 50%;
-  background: rgba(124, 134, 255, 0.16);
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.35) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.35) 75%, transparent 75%, transparent);
-  background-size: 24px 24px;
-  filter: blur(0.5px);
+  background-image: url('/wavy_circle.png');
+  background-color: #E5D1FA;
+  background-blend-mode: multiply;
+  background-size: cover;
+  background-position: center;
   pointer-events: none;
+  z-index: 1;
 }
 
 .decorCircle {
-  width: 320px;
-  height: 320px;
-  top: -40px;
-  left: -40px;
+  width: 400px;
+  height: 400px;
+  top: 0;
+  left: 0;
+  opacity: 0.8;
 }
 
 .decorCircleSmall {
-  width: 260px;
-  height: 260px;
-  bottom: -50px;
-  right: -30px;
+  width: 350px;
+  height: 350px;
+  bottom: 0;
+  right: 0;
+  opacity: 0.8;
 }
 
 .pathSvg {
@@ -492,117 +498,96 @@
   height: 100%;
   overflow: visible;
   pointer-events: none;
+  z-index: 2;
 }
 
 .whyItem {
-  position: relative;
+  position: absolute;
   background: transparent;
-  border-radius: 0;
-  padding: 0.5rem 0;
-  box-shadow: none;
-  border: none;
-  z-index: 2;
-  max-width: 320px;
+  padding: 0;
+  z-index: 5;
+  max-width: 280px;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.whyItemText {
+  flex: 1;
 }
 
 .whyItem h3 {
   font-size: 1.25rem;
   margin: 0 0 0.25rem 0;
+  color: #1a1a1a;
+  font-weight: 700;
 }
 
 .whyItem p {
   margin: 0;
-  color: #000000;
+  color: #4a4a4a;
   line-height: 1.5;
-}
-
-.whyItem h3 {
-  font-size: 1.25rem;
-  margin: 0 0 0.5rem 0;
-  color: #000000;
-  font-weight: bold;
-
-}
-
-.whyItem p {
-  margin: 0;
-  color: #000000;
-  line-height: 1.5;
+  font-size: 0.95rem;
 }
 
 .whyIcon {
-  width: 44px;
-  height: 44px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(124, 134, 255, 0.16);
-  border-radius: 50%;
   color: #5057A7;
-  margin-bottom: 1rem;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
 }
 
 .item1 {
-  position: absolute;
-  bottom: 70px;
-  left: 60px;
-  width: 320px;
+  bottom: 15%;
+  left: 5%;
 }
 
 .item2 {
-  position: absolute;
-  top: 200px;
-  left: 340px;
-  width: 320px;
+  bottom: 40%;
+  left: 30%;
 }
 
 .item3 {
-  position: absolute;
-  top: 100px;
-  right: 280px;
-  width: 320px;
+  bottom: 65%;
+  left: 55%;
 }
 
 .item4 {
-  position: absolute;
-  top: 30px;
-  right: 2px;
-  width: 320px;
+  top: 10%;
+  right: 5%;
 }
 
 .stepBadge {
   position: absolute;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   font-weight: 700;
-  color: #7C86FF;
-  background: rgba(124, 134, 255, 0.15);
-  border: 1px solid rgba(124, 134, 255, 0.35);
+  font-size: 1.5rem;
+  color: rgba(124, 134, 255, 0.6);
   z-index: 3;
+  pointer-events: none;
 }
 
 .step1 {
-  bottom: 1.25rem;
-  left: 3.5rem;
+  bottom: 5%;
+  left: 8%;
 }
 
 .step2 {
-  top: 21.25rem;
-  left: 21rem;
+  bottom: 29%;
+  left: 33%;
 }
 
 .step3 {
-  top: 16rem;
-  right: 34rem;
+  bottom: 54%;
+  left: 58%;
 }
 
 .step4 {
-  top: 11.5rem;
-  right: 16.5rem;
+  top: 21%;
+  right: 17%;
 }
 
 /* Final CTA */
