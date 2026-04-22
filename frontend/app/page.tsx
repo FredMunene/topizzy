@@ -17,8 +17,8 @@ export default function LandingPage() {
             <Image 
               src="/topizzy_logo.png" 
               alt="Topizzy Logo" 
-              width={56} 
-              height={56}
+              width={120} 
+              height={120}
               priority
             />
             <span>Topizzy</span>
@@ -298,7 +298,7 @@ export default function LandingPage() {
             <div className={styles.footerBrand}>
               <div className={styles.footerBrandHeader}>
                 <div className={styles.footerLogo}>
-                  <Image src="/topizzy_logo.png" alt="Topizzy Logo" width={80} height={80} />
+                  <Image src="/topizzy_logo.png" alt="Topizzy Logo" width={120} height={120} />
                 </div>
                 <div className={styles.footerBrandName}>Topizzy</div>
               </div>
