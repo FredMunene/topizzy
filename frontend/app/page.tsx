@@ -25,9 +25,9 @@ export default function LandingPage() {
           </div>
 
           <nav className={`${styles.nav} ${isMenuOpen ? styles.navOpen : ''}`}>
-            <a href="#how-it-works" className={styles.navLink}>How It Works</a>
-            <a href="#faq" className={styles.navLink}>FAQs</a>
-            <Link href="/platform" className={styles.ctaButton}>Connect Wallet</Link>
+            <a href="#how-it-works" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>How It Works</a>
+            <a href="#faq" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>FAQs</a>
+            <Link href="/platform" className={styles.ctaButton} onClick={() => setIsMenuOpen(false)}>Connect Wallet</Link>
           </nav>
 
           <button 
