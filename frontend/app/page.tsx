@@ -116,6 +116,17 @@ export default function LandingPage() {
                   <div className={styles.infoCardSubtitle}>Delivered in seconds</div>
                 </div>
               </div>
+              <div className={`${styles.infoCard} ${styles.infoCardSecondary}`}>
+                <div className={`${styles.infoCardIcon} ${styles.infoCardIconSecondary}`}>
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M13 2L3 14h9l-1 8L21 10h-9l1-8z" />
+                  </svg>
+                </div>
+                <div className={styles.infoCardText}>
+                  <div className={styles.infoCardTitle}>Available 24/7</div>
+                  <div className={styles.infoCardSubtitle}>Top up anytime, day or night</div>
+                </div>
+              </div>
               <Image
                 src="/hero-landing.png"
                 alt="Topizzy Landing Hero"
