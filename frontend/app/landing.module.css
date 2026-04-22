@@ -3,7 +3,6 @@
   background: #f0f2ff;
   overflow-x: hidden;
   scroll-behavior: smooth;
-  padding-top: 100px;
 }
 
 /* Header */
@@ -13,11 +12,9 @@
   left: 0;
   right: 0;
   z-index: 100;
-  background: rgba(240, 242, 255, 0.98);
+  background: linear-gradient(to right, #DFDEFE, #E9EAFE);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid #e5d9ff;
   padding: 1rem 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .headerContent {
@@ -98,7 +95,7 @@
 
 /* Hero Section */
 .hero {
-  background: linear-gradient(135deg, #f0e8ff 0%, #e8dcf5 100%);
+  background: linear-gradient(to right, #DFDEFE, #E9EAFE);
   min-height: 100vh;
   display: flex;
   align-items: center;
