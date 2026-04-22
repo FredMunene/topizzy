@@ -40,6 +40,21 @@
   width: 120px;
   height: 120px;
   object-fit: contain;
+  transition: width 0.3s, height 0.3s;
+}
+
+@media (max-width: 992px) {
+  .logo img {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo img {
+    width: 60px;
+    height: 60px;
+  }
 }
 
 .nav {
@@ -99,8 +114,15 @@
   min-height: 100vh;
   display: flex;
   align-items: center;
-  padding: 4rem 1rem;
+  padding: 12rem 1rem 4rem;
   scroll-margin-top: 60px;
+}
+
+@media (max-width: 992px) {
+  .hero {
+    padding: 8rem 1rem 4rem;
+    min-height: auto;
+  }
 }
 
 .heroContent {
@@ -111,6 +133,14 @@
   grid-template-columns: 1fr 1fr;
   gap: 3rem;
   align-items: center;
+}
+
+@media (max-width: 992px) {
+  .heroContent {
+    grid-template-columns: 1fr;
+    text-align: center;
+    gap: 4rem;
+  }
 }
 
 /* placeholder while image loads */
@@ -125,6 +155,12 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+@media (max-width: 992px) {
+  .heroText {
+    align-items: center;
+  }
 }
 
 .heroTitle {
@@ -146,6 +182,12 @@
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+@media (max-width: 992px) {
+  .heroButtons {
+    justify-content: center;
+  }
 }
 
 .primaryButton {
@@ -191,6 +233,13 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+@media (max-width: 992px) {
+  .networkLogos {
+    justify-content: center;
+    gap: 2rem;
+  }
+}
+
 .networkLogo {
   display: flex;
   align-items: center;
@@ -232,6 +281,14 @@
   z-index: 1;
 }
 
+@media (max-width: 992px) {
+  .circleBg {
+    width: 100%;
+    left: 0;
+    top: 50%;
+  }
+}
+
 .infoCard {
   position: absolute;
   background: white;
@@ -247,6 +304,21 @@
   border: 1px solid rgba(224, 224, 255, 0.5);
   animation: floatCard 4s ease-in-out infinite;
   min-width: 280px;
+}
+
+@media (max-width: 992px) {
+  .infoCard {
+    top: 10%;
+    left: 0;
+    min-width: 240px;
+    padding: 0.75rem 1rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .infoCard {
+    display: none;
+  }
 }
 
 .infoCardIcon {
@@ -291,6 +363,15 @@
   animation-delay: -2s;
 }
 
+@media (max-width: 992px) {
+  .infoCardSecondary {
+    top: auto;
+    bottom: 10%;
+    left: auto;
+    right: 0;
+  }
+}
+
 .infoCardIconSecondary {
   background: #7C86FF;
   color: #FFD600;
@@ -320,7 +401,19 @@
   max-width: 600px;
   height: auto;
   transform: translateX(30%);
-  z-index: 2;
+}
+
+@media (max-width: 992px) {
+  .mainHero {
+    transform: translateX(0);
+    max-width: 500px;
+  }
+}
+
+@media (max-width: 576px) {
+  .mainHero {
+    max-width: 100%;
+  }
 }
 
 .heroImage img {
@@ -752,6 +845,21 @@
   display: grid;
   place-items: center;
   background: transparent;
+  transition: width 0.3s, height 0.3s;
+}
+
+@media (max-width: 992px) {
+  .footerLogo {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .footerLogo {
+    width: 60px;
+    height: 60px;
+  }
 }
 
 .footerBrandName {
@@ -857,21 +965,38 @@
 @media (max-width: 768px) {
   .nav {
     position: absolute;
-    top: 60px;
+    top: 100%;
     left: 0;
     right: 0;
     flex-direction: column;
-    background: #f0e8ff;
-    padding: 1.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    gap: 1rem;
+    background: white;
+    padding: 2rem 1.5rem;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    gap: 1.5rem;
     max-height: 0;
     overflow: hidden;
-    transition: max-height 0.3s;
+    transition: all 0.3s ease-in-out;
+    border-top: 1px solid rgba(124, 134, 255, 0.1);
+    opacity: 0;
+    visibility: hidden;
   }
 
   .navOpen {
-    max-height: 400px;
+    max-height: 500px;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .navLink {
+    width: 100%;
+    text-align: center;
+    padding: 0.5rem 0;
+    font-size: 1.1rem;
+  }
+
+  .ctaButton {
+    width: 100%;
+    text-align: center;
   }
 
   .hamburger {
@@ -926,7 +1051,12 @@
   .whyItem {
     position: static;
     width: auto;
+    max-width: 100%;
+    margin: 0 auto;
     box-shadow: 0 16px 28px rgba(0, 0, 0, 0.05);
+    background: white;
+    padding: 1.5rem;
+    border-radius: 12px;
   }
 
   .pathSvg {
@@ -997,6 +1127,10 @@
   .item3,
   .item4 {
     justify-self: center;
+    transform: none;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 320px;
   }
 
   .finalCta h2 {
