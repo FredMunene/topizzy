@@ -105,6 +105,17 @@ export default function LandingPage() {
                 className={styles.circleBg}
                 priority
               />
+              <div className={styles.infoCard}>
+                <div className={styles.infoCardIcon}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <div className={styles.infoCardText}>
+                  <div className={styles.infoCardTitle}>Instant Airtime Top-Up</div>
+                  <div className={styles.infoCardSubtitle}>Delivered in seconds</div>
+                </div>
+              </div>
               <Image
                 src="/hero-landing.png"
                 alt="Topizzy Landing Hero"
