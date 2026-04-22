@@ -285,6 +285,22 @@
   font-weight: 500;
 }
 
+.infoCardSecondary {
+  top: 15%;
+  left: 98%;
+  animation-delay: -2s;
+}
+
+.infoCardIconSecondary {
+  background: #7C86FF;
+  color: #FFD600;
+}
+
+.infoCardIconSecondary svg {
+  width: 20px;
+  height: 20px;
+}
+
 @keyframes floatCard {
 
   0%,
