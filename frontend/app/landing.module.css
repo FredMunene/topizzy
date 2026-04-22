@@ -381,7 +381,7 @@
 /* How It Works */
 .howItWorks {
   padding: 5rem 1rem;
-  background: linear-gradient(180deg, #D0D6FF 0%, #EAEDFF 100%);
+  background: linear-gradient(180deg, #C0C0F8 0%, #E1E1FE 100%);
 }
 
 .stepsGrid {
@@ -590,7 +590,7 @@
 /* Final CTA */
 .finalCta {
   padding: 5rem 1rem;
-  background: linear-gradient(180deg, #D0D6FF 0%, #EAEDFF 100%);
+  background: linear-gradient(180deg, #C0C0F8 0%, #E1E1FE 100%);
   text-align: center;
 }
 
