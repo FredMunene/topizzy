@@ -232,6 +232,71 @@
   z-index: 1;
 }
 
+.infoCard {
+  position: absolute;
+  background: white;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  top: 30%;
+  left: 17%;
+  border: 1px solid rgba(224, 224, 255, 0.5);
+  animation: floatCard 4s ease-in-out infinite;
+  min-width: 280px;
+}
+
+.infoCardIcon {
+  width: 42px;
+  height: 42px;
+  background: #EBF7EE;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #34A853;
+  flex-shrink: 0;
+}
+
+.infoCardIcon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.infoCardText {
+  display: flex;
+  flex-direction: column;
+}
+
+.infoCardTitle {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.infoCardSubtitle {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+}
+
+@keyframes floatCard {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
 .mainHero {
   position: relative;
   z-index: 2;
