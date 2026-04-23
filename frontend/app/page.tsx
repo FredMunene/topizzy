@@ -313,7 +313,7 @@ export default function LandingPage() {
       <section className={styles.finalCta}>
         <div className={styles.sectionContent}>
           <h2>Ready to Top Up with Crypto?</h2>
-          <p className={styles.ctaSubtitle}>Turn your USDC into airtime in seconds.<br />Works with all Kenya networks</p>
+          <p className={styles.ctaSubtitle}>Turn your USDC into airtime in seconds.<br />Works with most networks in Africa</p>
           <Link href="/platform" className={styles.ctaButton}>
             Get Started Now
           </Link>
@@ -345,7 +345,7 @@ export default function LandingPage() {
             <div className={styles.footerLinks}>
               <div className={styles.footerColumn}>
                 <div className={styles.columnTitle}>Product</div>
-                <a href="#">Buy Airtime</a>
+                <Link href="/platform">Buy Airtime</Link>
                 <a href="#" onClick={handleComingSoon}>Download App</a>
               </div>
               <div className={styles.footerColumn}>
@@ -371,8 +371,8 @@ export default function LandingPage() {
           <div className={styles.footerBottom}>
             <p>&copy; 2026 Topizzy. All rights reserved.</p>
             <div className={styles.footerLegal}>
-              <a href="#terms">Terms &amp; Conditions</a>
-              <a href="#privacy">Privacy Policy</a>
+              <a href="#" onClick={handleComingSoon}>Terms &amp; Conditions</a>
+              <a href="#" onClick={handleComingSoon}>Privacy Policy</a>
             </div>
           </div>
         </div>
