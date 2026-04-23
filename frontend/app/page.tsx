@@ -7,6 +7,13 @@ import styles from './landing.module.css';
 
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+
+  const handleComingSoon = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setShowPopup(true);
+    setTimeout(() => setShowPopup(false), 3000);
+  };
 
   return (
     <div className={styles.landingContainer}>
@@ -326,10 +333,10 @@ export default function LandingPage() {
               </div>
               <div className={styles.footerTagline}>Turn crypto into mobile airtime instantly</div>
               <div className={styles.footerSocial}>
-                <a href="https://wa.me/254743913802" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+                <a href="https://wa.me/254769007848" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
                   <Image src="/whatsappLogo.png" alt="WhatsApp" width={32} height={32} />
                 </a>
-                <a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="X">
+                <a href="https://x.com/Topizzy_" target="_blank" rel="noopener noreferrer" aria-label="X">
                   <Image src="/xLogo.png" alt="X" width={32} height={32} />
                 </a>
               </div>
@@ -339,22 +346,22 @@ export default function LandingPage() {
               <div className={styles.footerColumn}>
                 <div className={styles.columnTitle}>Product</div>
                 <a href="#">Buy Airtime</a>
-                <a href="#">Download App</a>
+                <a href="#" onClick={handleComingSoon}>Download App</a>
               </div>
               <div className={styles.footerColumn}>
                 <div className={styles.columnTitle}>Company</div>
-                <a href="#">Benefits</a>
-                <a href="#">Contact</a>
+                <a href="#" onClick={handleComingSoon}>Benefits</a>
+                <a href="#" onClick={handleComingSoon}>Contact</a>
               </div>
               <div className={styles.footerColumn}>
-                <div className={styles.columnTitle}>Resources</div>
+                <div className={styles.columnTitle} onClick={handleComingSoon} style={{ cursor: 'pointer' }}>Resources</div>
                 <a href="#how-it-works">How it Works</a>
-                <a href="#faq">FAQs</a>
+                <a href="#" onClick={handleComingSoon}>FAQs</a>
               </div>
               <div className={styles.footerColumn}>
                 <div className={styles.columnTitle}>Customer Support</div>
-                <a href="#">Help Center</a>
-                <a href="#">Security Tips</a>
+                <a href="#" onClick={handleComingSoon}>Help Center</a>
+                <a href="#" onClick={handleComingSoon}>Security Tips</a>
               </div>
             </div>
           </div>
@@ -362,7 +369,7 @@ export default function LandingPage() {
           <hr className={styles.footerDivider} />
 
           <div className={styles.footerBottom}>
-            <p>&copy; 2024 Topizzy. All rights reserved.</p>
+            <p>&copy; 2026 Topizzy. All rights reserved.</p>
             <div className={styles.footerLegal}>
               <a href="#terms">Terms &amp; Conditions</a>
               <a href="#privacy">Privacy Policy</a>
@@ -370,6 +377,16 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Coming Soon Popup */}
+      {showPopup && (
+        <div className={styles.popup}>
+          <div className={styles.popupContent}>
+            <div className={styles.popupIcon}>🚀</div>
+            <p>Coming Soon! This feature is under development.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
