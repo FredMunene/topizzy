@@ -333,10 +333,10 @@ export default function LandingPage() {
               </div>
               <div className={styles.footerTagline}>Turn crypto into mobile airtime instantly</div>
               <div className={styles.footerSocial}>
-                <a href="https://wa.me/254743913802" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+                <a href="https://wa.me/254769007848" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
                   <Image src="/whatsappLogo.png" alt="WhatsApp" width={32} height={32} />
                 </a>
-                <a href="https://x.com" target="_blank" rel="noopener noreferrer" aria-label="X">
+                <a href="https://x.com/Topizzy_" target="_blank" rel="noopener noreferrer" aria-label="X">
                   <Image src="/xLogo.png" alt="X" width={32} height={32} />
                 </a>
               </div>
