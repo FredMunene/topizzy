@@ -33,7 +33,7 @@ export default function LandingPage() {
 
           <nav className={`${styles.nav} ${isMenuOpen ? styles.navOpen : ''}`}>
             <a href="#how-it-works" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>How It Works</a>
-            <a href="#faq" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>FAQs</a>
+            <a href="#" className={styles.navLink} onClick={(e) => { setIsMenuOpen(false); handleComingSoon(e); }}>FAQs</a>
             <Link href="/platform" className={styles.ctaButton} onClick={() => setIsMenuOpen(false)}>Connect Wallet</Link>
           </nav>
 
