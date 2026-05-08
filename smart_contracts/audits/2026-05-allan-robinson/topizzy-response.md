@@ -144,9 +144,17 @@ The contract is proprietary. `UNLICENSED` is the correct identifier. No change.
 
 ## I-3 — No NatSpec documentation
 
-**Topizzy response — PARTIAL**
+**Topizzy response — FIXED**
 
-Key state variables and functions have `@notice` / `@dev` comments. Exhaustive `@param` / `@return` NatSpec on every function is not prioritised at this stage. This will be added as part of pre-mainnet preparation alongside formal contract verification on Basescan.
+Full NatSpec has been added to all public-facing items in `Airtime.sol`:
+
+- `@title` / `@notice` / `@dev` on the contract itself
+- `@dev` on each `OrderRecord` struct field
+- `@notice` / `@param` on all three events
+- `@notice` on all state variables and the constant
+- `@notice` / `@param` / `@return` on the constructor and all four external functions (`depositWithPermit`, `deposit`, `refund`, `withdrawTreasury`)
+
+The contract is ready for Basescan source verification — the NatSpec will be displayed in the UI for users reading the contract directly.
 
 ---
 
@@ -163,4 +171,4 @@ Key state variables and functions have `@notice` / `@dev` comments. Exhaustive `
 | L-2 | Unused `depositCounter` | ✅ Fixed — removed, replaced with `bytes32 orderHash` |
 | I-1 | Broken test suite | ✅ Fixed — full suite passing |
 | I-2 | SPDX UNLICENSED | ℹ️ Intentional |
-| I-3 | Missing NatSpec | ℹ️ Partial — pre-mainnet task |
+| I-3 | Missing NatSpec | ✅ Fixed — full `@notice` / `@param` / `@return` on all items |
