@@ -74,6 +74,7 @@ contract Airtime is ReentrancyGuard {
     ) external nonReentrant returns (bytes32 orderHash) {
         // Checks
         require(amount > 0, "Amount must be > 0");
+        require(bytes(depositRef).length > 0, "Empty reference");
         require(bytes(depositRef).length <= MAX_REF_LENGTH, "Reference too long");
         orderHash = keccak256(abi.encodePacked(depositRef, msg.sender));
         require(orders[orderHash].amount == 0, "Order already exists");
@@ -98,6 +99,7 @@ contract Airtime is ReentrancyGuard {
     function deposit(string memory depositRef, uint256 amount) external nonReentrant returns (bytes32 orderHash) {
         // Checks
         require(amount > 0, "Amount must be > 0");
+        require(bytes(depositRef).length > 0, "Empty reference");
         require(bytes(depositRef).length <= MAX_REF_LENGTH, "Reference too long");
         orderHash = keccak256(abi.encodePacked(depositRef, msg.sender));
         require(orders[orderHash].amount == 0, "Order already exists");
