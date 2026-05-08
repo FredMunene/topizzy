@@ -17,7 +17,7 @@ contract AirtimeInvariant is StdInvariant, Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        airtime = new Airtime(address(usdc), treasury);
+        airtime = new Airtime(address(usdc), treasury, treasury);
         handler = new AirtimeHandler(airtime, usdc, treasury);
 
         // Only fuzz through the handler

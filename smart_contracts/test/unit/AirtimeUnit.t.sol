@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import {Airtime} from "../../src/Airtime.sol";
-import {MockUSDC} from "../mocks/MockUSDC.sol";
+import {MockUSDC} from "../../test/mocks/MockUSDC.sol";
 
 contract AirtimeTest is Test {
     Airtime public airtime;
@@ -23,7 +23,7 @@ contract AirtimeTest is Test {
     function setUp() public {
         treasury = address(this);
         usdc = new MockUSDC();
-        airtime = new Airtime(address(usdc), treasury);
+        airtime = new Airtime(address(usdc), treasury, treasury);
 
         userPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
         user = vm.addr(userPrivateKey);

@@ -24,7 +24,7 @@ contract AirtimeTest is Test {
     function setUp() public {
         treasury = address(this);
         usdc = new MockUSDC();
-        airtime = new Airtime(address(usdc), treasury);
+        airtime = new Airtime(address(usdc), treasury, treasury);
 
         userPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
         user = vm.addr(userPrivateKey);

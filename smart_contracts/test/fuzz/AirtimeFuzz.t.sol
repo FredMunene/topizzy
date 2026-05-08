@@ -5,7 +5,7 @@ pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
 import {Airtime} from "../../src/Airtime.sol";
-import {MockUSDC} from "../mocks/MockUSDC.sol";
+import {MockUSDC} from "../../test/mocks/MockUSDC.sol";
 
 contract AirtimeFuzz is Test {
     Airtime public airtime;
@@ -14,7 +14,7 @@ contract AirtimeFuzz is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        airtime = new Airtime(address(usdc), treasury);
+        airtime = new Airtime(address(usdc), treasury, treasury);
     }
 
     // ─────────────────────────────────────────────────────────
@@ -61,37 +61,35 @@ contract AirtimeFuzz is Test {
     }
 
     // ─────────────────────────────────────────────────────────
-    // INVARIANT 2: Only treasury can move funds
-    // Fuzz: random caller tries to call treasury functions
+    // INVARIANT 2: Only privileged roles can move funds
+    // treasury  → withdrawTreasury() (Gnosis Safe)
+    // operator  → refund()           (backend hot wallet)
     // ─────────────────────────────────────────────────────────
-    function testFuzz_OnlyTreasuryCanMoveFunds(
+    function testFuzz_OnlyPrivilegedRolesCanMoveFunds(
         address randomCaller,
         uint256 amount
     ) public {
         amount = bound(amount, 1, 10_000e6);
 
-        // Exclude treasury from random callers
         vm.assume(randomCaller != treasury);
         vm.assume(randomCaller != address(0));
 
-        // Fund the contract
         usdc.mint(address(airtime), amount);
 
-        // Random caller tries refund — must revert
+        // Random caller tries refund — must revert with operator error
         vm.prank(randomCaller);
-        vm.expectRevert("Only treasury");
+        vm.expectRevert("Only operator");
         airtime.refund("ref", randomCaller, amount);
 
-        // Random caller tries withdrawTreasury — must revert
+        // Random caller tries withdrawTreasury — must revert with treasury error
         vm.prank(randomCaller);
         vm.expectRevert("Only treasury");
         airtime.withdrawTreasury(randomCaller, amount);
 
-        // Funds must still be in the contract
         assertEq(
             usdc.balanceOf(address(airtime)),
             amount,
-            "Funds must be untouched by non-treasury caller"
+            "Funds must be untouched by unprivileged caller"
         );
     }
 

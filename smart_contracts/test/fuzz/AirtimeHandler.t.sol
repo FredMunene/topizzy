@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {Airtime} from "../../src/Airtime.sol";
-import {MockUSDC} from "../mocks/MockUSDC.sol";
+import {MockUSDC} from "../../test/mocks/MockUSDC.sol";
 
 contract AirtimeHandler is Test {
     Airtime public airtime;
