@@ -162,13 +162,13 @@ The contract is ready for Basescan source verification — the NatSpec will be d
 
 | ID | Finding | Status |
 |----|---------|--------|
-| H-1 | No refund deduplication | ✅ Fixed — `OrderRecord.settled` + CEI |
-| H-2 | Single EOA treasury | ✅ Addressed — Gnosis Safe 2-of-3 + operator split |
-| M-1 | No treasury transfer mechanism | ℹ️ By design — immutable + Gnosis Safe mitigates key loss |
-| M-2 | `withdrawTreasury` missing `nonReentrant` | ✅ Fixed |
-| M-3 | Permit front-running griefing | ✅ Fixed — try/catch with allowance fallback |
-| L-1 | Empty `depositRef` accepted | ✅ Fixed — `length > 0` check added |
-| L-2 | Unused `depositCounter` | ✅ Fixed — removed, replaced with `bytes32 orderHash` |
-| I-1 | Broken test suite | ✅ Fixed — full suite passing |
-| I-2 | SPDX UNLICENSED | ℹ️ Intentional |
-| I-3 | Missing NatSpec | ✅ Fixed — full `@notice` / `@param` / `@return` on all items |
+| H-1 | No refund deduplication | Fixed — `OrderRecord.settled` + CEI |
+| H-2 | Single EOA treasury | Addressed — Gnosis Safe 2-of-3 + operator split |
+| M-1 | No treasury transfer mechanism | By design — immutable + Gnosis Safe mitigates key loss |
+| M-2 | `withdrawTreasury` missing `nonReentrant` | Fixed |
+| M-3 | Permit front-running griefing | Fixed — try/catch with allowance fallback |
+| L-1 | Empty `depositRef` accepted | Fixed — `length > 0` check added |
+| L-2 | Unused `depositCounter` | Fixed — removed, replaced with `bytes32 orderHash` |
+| I-1 | Broken test suite | Fixed — full suite passing |
+| I-2 | SPDX UNLICENSED | Intentional |
+| I-3 | Missing NatSpec | Fixed — full `@notice` / `@param` / `@return` on all items |
