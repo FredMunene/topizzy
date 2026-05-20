@@ -324,7 +324,7 @@ export default function Home() {
     // Check amount restrictions based on country
     const restrictions: { [key: string]: { min: number; max: number } } = {
       "KE": { min: 5, max: 5000 },
-      "UG": { min: 50, max: 200000 },
+      "UG": { min: 50, max: 50000 },
       "TZ": { min: 500, max: 200000 },
       "RW": { min: 100, max: 40000 },
       "ZA": { min: 5, max: 65 },
@@ -919,7 +919,6 @@ export default function Home() {
                     }}
                     onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
                     onSuccess={handleSmartWalletSuccess}
-                    className={styles.continueButton}
                   >
                     <TransactionButton
                       className={styles.continueButton}
@@ -1025,7 +1024,7 @@ export default function Home() {
       </div>
     </div>
     <a
-    href="https://wa.me/254743913802?text=Hi%2C%20I%20am%20making%20an%20inquiry%20concerning%20Topizzy"
+    href="https://wa.me/254769007848?text=Hi%2C%20I%20am%20making%20an%20inquiry%20concerning%20Topizzy"
       target="_blank"
       rel="noopener noreferrer"
       className={styles.whatsappFab}
