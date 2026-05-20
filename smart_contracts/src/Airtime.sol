@@ -1,4 +1,8 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BUSL-1.1
+// Business Source License 1.1
+// License parameters:
+//   Change Date:    2029-05-20
+//   Change License: MIT
 pragma solidity ^0.8.13;
 
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
