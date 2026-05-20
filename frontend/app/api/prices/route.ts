@@ -1,6 +1,12 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+// Topizzy FX margin applied on top of live Coinbase rate.
+// User sees slightly fewer local units per USDC; difference is Topizzy revenue.
+// 0.5% is well below Coinbase (0.5–1.5%), M-PESA GlobalPay (2–3%), Remitly (1.5–4%).
+// Configurable via PRICE_SPREAD env var for easy tuning without a deploy.
+const SPREAD = Number(process.env.PRICE_SPREAD ?? '0.005');
+
 // In-memory cache to prevent concurrent API calls
 const pendingRequests = new Map<string, Promise<number>>();
 
@@ -63,9 +69,10 @@ export async function GET(request: NextRequest) {
         if (response.ok) {
           const data = await response.json();
           if (data.data?.rates?.[currency]) {
-            currentPrice = Number.parseFloat(Number.parseFloat(data.data.rates[currency]).toFixed(2));
-            
-            // Update database with new price
+            const marketRate = Number.parseFloat(data.data.rates[currency]);
+            // Store raw market rate in DB — spread applied at response time
+            currentPrice = Number.parseFloat((marketRate * (1 - SPREAD)).toFixed(2));
+
             await supabase
               .from('prices')
               .upsert({
@@ -77,7 +84,6 @@ export async function GET(request: NextRequest) {
                 onConflict: 'token,currency'
               });
 
-            // Store as last successful price
             lastSuccessfulPrice = { price: currentPrice, updated_at: now.toISOString() };
           }
         }
