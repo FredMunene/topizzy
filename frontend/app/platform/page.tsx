@@ -1025,7 +1025,7 @@ export default function Home() {
       </div>
     </div>
     <a
-    href="https://wa.me/254743913802?text=Hi%2C%20I%20am%20making%20an%20inquiry%20concerning%20Topizzy"
+    href="https://wa.me/254769007848?text=Hi%2C%20I%20am%20making%20an%20inquiry%20concerning%20Topizzy"
       target="_blank"
       rel="noopener noreferrer"
       className={styles.whatsappFab}
