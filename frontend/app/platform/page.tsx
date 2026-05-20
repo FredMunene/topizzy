@@ -324,7 +324,7 @@ export default function Home() {
     // Check amount restrictions based on country
     const restrictions: { [key: string]: { min: number; max: number } } = {
       "KE": { min: 5, max: 5000 },
-      "UG": { min: 50, max: 200000 },
+      "UG": { min: 50, max: 50000 },
       "TZ": { min: 500, max: 200000 },
       "RW": { min: 100, max: 40000 },
       "ZA": { min: 5, max: 65 },
