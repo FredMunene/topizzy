@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
@@ -11,21 +11,22 @@ contract DeployScript is Script {
         // USDC token addresses
         
         address usdcTokenAddress = vm.envAddress("USDC_MAINNET_TOKEN_ADDRESS");
-        address treasuryAddress = vm.envAddress("TREASURY_ADDRESS");
-        
+        address treasuryAddress = vm.envAddress("TREASURER_ADDRESS");
+        address operatorAddress = vm.envAddress("OPERATOR_ADDRESS");
+
         console.log("Deploying with parameters:");
         console.log("USDC Token:", usdcTokenAddress);
         console.log("Treasury:", treasuryAddress);
+        console.log("Operator:", operatorAddress);
 
         // Start broadcasting to the specified chain
         vm.startBroadcast();
 
-        // Deploy the Airtime contract with USDC token and treasury addresses
-        Airtime airtime = new Airtime(usdcTokenAddress, treasuryAddress);
-        
-        // Log the deployed contract address
+        Airtime airtime = new Airtime(usdcTokenAddress, treasuryAddress, operatorAddress);
+
         console.log("\nAirtime contract deployed at:", address(airtime));
         console.log("Treasury address:", airtime.treasury());
+        console.log("Operator address:", airtime.operator());
         console.log("USDC Token address:", airtime.usdcToken());
 
         // Stop broadcasting
