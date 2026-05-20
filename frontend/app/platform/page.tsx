@@ -919,7 +919,6 @@ export default function Home() {
                     }}
                     onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
                     onSuccess={handleSmartWalletSuccess}
-                    className={styles.continueButton}
                   >
                     <TransactionButton
                       className={styles.continueButton}
