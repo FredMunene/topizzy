@@ -10,7 +10,7 @@ contract DeployScript is Script {
     function run() public returns (Airtime) {
         // USDC token addresses
         
-        address usdcTokenAddress = vm.envAddress("USDC_SEPOLIA_TOKEN_ADDRESS");
+        address usdcTokenAddress = vm.envAddress("USDC_MAINNET_TOKEN_ADDRESS");
         address treasuryAddress = vm.envAddress("TREASURER_ADDRESS");
         address operatorAddress = vm.envAddress("OPERATOR_ADDRESS");
 

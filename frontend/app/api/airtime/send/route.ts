@@ -24,7 +24,7 @@ const AFRICASTALKING_USERNAME = process.env.NEXT_AFRICASTALKING_USERNAME!
 const AFRICASTALKING_API_KEY = process.env.NEXT_AFRICASTALKING_API_KEY!
 const AFRICASTALKING_URL = process.env.NEXT_AFRICASTALKING_URL!
 const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
-const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY
+const TREASURY_PRIVATE_KEY = process.env.OPERATOR_PRIVATE_KEY
 
 function normalizePrivateKey(pk?: string | null): `0x${string}` | null {
   if (!pk) return null;
