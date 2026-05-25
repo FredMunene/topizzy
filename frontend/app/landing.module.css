@@ -224,33 +224,26 @@
 
 .networkLogos {
   display: flex;
-  gap: 5rem;
-  flex-wrap: wrap;
+  gap: 2rem;
+  flex-wrap: nowrap;
   background: white;
-  padding: 0.5rem;
+  padding: 0.75rem 1rem;
   border-radius: 8px;
   align-items: center;
+  justify-content: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-@media (max-width: 992px) {
-  .networkLogos {
-    justify-content: center;
-    gap: 2rem;
-  }
 }
 
 .networkLogo {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #333;
-  font-weight: 500;
+  flex-shrink: 0;
 }
 
 .networkLogo img {
-  width: 80px;
-  height: 80px;
+  width: 64px;
+  height: 48px;
   object-fit: contain;
 }
 
@@ -555,7 +548,7 @@
 /* How It Works */
 .howItWorks {
   padding: 5rem 1rem;
-  background: linear-gradient(180deg, #C0C0F8 0%, #E1E1FE 100%);
+  background: linear-gradient(180deg, #e8eaff 0%, #DFDEFE 100%);
 }
 
 .stepsGrid {
@@ -764,7 +757,7 @@
 /* Final CTA */
 .finalCta {
   padding: 5rem 1rem;
-  background: linear-gradient(180deg, #C0C0F8 0%, #E1E1FE 100%);
+  background: linear-gradient(180deg, #DFDEFE 0%, #e8eaff 100%);
   text-align: center;
 }
 
@@ -862,6 +855,11 @@
   }
 }
 
+.footerLogoImg {
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
 .footerBrandName {
   font-size: 1.75rem;
   font-weight: 700;
@@ -883,18 +881,26 @@
 }
 
 .footerSocial a {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: hidden;
-  transition: transform 0.2s ease;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .footerSocial a:hover {
+  background: rgba(255, 255, 255, 0.25);
   transform: translateY(-2px);
+}
+
+.footerSocial a img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .footerLinks {

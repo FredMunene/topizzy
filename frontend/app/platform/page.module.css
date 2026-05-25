@@ -548,6 +548,8 @@
 
 .brandLogo {
   object-fit: contain;
+  transform: scale(1.9);
+  transform-origin: center;
 }
 
 /* ── Network warning ─────────────────────────────── */

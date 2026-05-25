@@ -718,8 +718,8 @@ export default function Home() {
                 <Image
                   src="/topizzy_logo.png"
                   alt="Topizzy"
-                  width={52}
-                  height={52}
+                  width={56}
+                  height={56}
                   priority
                   className={styles.brandLogo}
                 />

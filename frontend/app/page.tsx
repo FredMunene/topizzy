@@ -5,9 +5,61 @@ import Link from 'next/link';
 import Image from 'next/image';
 import styles from './landing.module.css';
 
+const FAQS = [
+  {
+    q: 'What is Topizzy?',
+    a: 'Topizzy lets you convert USDC crypto into mobile airtime and data bundles instantly for phone numbers across Africa. No bank account or card needed — just a crypto wallet and a phone number.',
+  },
+  {
+    q: 'Which countries are supported?',
+    a: 'Airtime: Kenya, Uganda, Tanzania, Rwanda, and South Africa. Data bundles: Kenya, Uganda, South Africa, Ghana, and Nigeria. More countries are on the way.',
+  },
+  {
+    q: 'Which mobile networks are supported?',
+    a: 'We support all major networks including Safaricom, Airtel, MTN, and Vodacom. Enter any valid local number and we detect the network automatically.',
+  },
+  {
+    q: 'What do I need to get started?',
+    a: 'A crypto wallet (Coinbase Wallet, MetaMask, or any WalletConnect-compatible wallet) loaded with USDC on the Base network, and the phone number you want to top up.',
+  },
+  {
+    q: 'What currency do I pay in?',
+    a: 'All payments are made in USDC on the Base blockchain. USDC is a US dollar stablecoin — 1 USDC ≈ $1 USD — so your costs are predictable.',
+  },
+  {
+    q: 'What is the service fee?',
+    a: 'We charge a flat fee of 0.05 USDC per transaction. The exchange rate applied is a live Coinbase rate with a small operational spread, always shown before you confirm.',
+  },
+  {
+    q: 'How long does delivery take?',
+    a: 'Airtime and data bundles are typically delivered within seconds of your payment confirming on-chain.',
+  },
+  {
+    q: 'What if I enter the wrong phone number?',
+    a: 'Payments to incorrect phone numbers are non-refundable. Please double-check the number carefully before confirming your transaction.',
+  },
+  {
+    q: 'What happens if my transaction fails?',
+    a: 'If your payment confirms on-chain but airtime is not delivered, your USDC is automatically refunded to your wallet. You can also reach us on WhatsApp for immediate support.',
+  },
+  {
+    q: 'Is Topizzy secure?',
+    a: 'Yes. Payments are processed through an independently audited smart contract on Base. We never hold your private keys — you sign every transaction directly from your own wallet.',
+  },
+  {
+    q: 'What exchange rate is used?',
+    a: 'We pull live rates from Coinbase, refreshed every 15 seconds, and apply a small operational spread. The exact rate is always displayed before you pay.',
+  },
+  {
+    q: 'How do I contact support?',
+    a: 'Reach us on WhatsApp at +254 769 007 848 or email hello@topizzy.com. We\'re available 24/7.',
+  },
+];
+
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const handleComingSoon = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -21,10 +73,10 @@ export default function LandingPage() {
       <header className={styles.header}>
         <div className={styles.headerContent}>
           <div className={styles.logo}>
-            <Image 
-              src="/topizzy_logo.png" 
-              alt="Topizzy Logo" 
-              width={120} 
+            <Image
+              src="/topizzy_logo.png"
+              alt="Topizzy Logo"
+              width={120}
               height={120}
               priority
             />
@@ -33,8 +85,8 @@ export default function LandingPage() {
 
           <nav className={`${styles.nav} ${isMenuOpen ? styles.navOpen : ''}`}>
             <a href="#how-it-works" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>How It Works</a>
-            <a href="#" className={styles.navLink} onClick={(e) => { setIsMenuOpen(false); handleComingSoon(e); }}>FAQs</a>
-            <Link href="/platform" className={styles.ctaButton} onClick={() => setIsMenuOpen(false)}>Connect Wallet</Link>
+            <Link href="/faqs" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>FAQs</Link>
+            <Link href="/platform" className={styles.ctaButton} onClick={() => setIsMenuOpen(false)}>Open App</Link>
           </nav>
 
           <button 
@@ -327,7 +379,7 @@ export default function LandingPage() {
             <div className={styles.footerBrand}>
               <div className={styles.footerBrandHeader}>
                 <div className={styles.footerLogo}>
-                  <Image src="/topizzy_logo.png" alt="Topizzy Logo" width={120} height={120} />
+                  <Image src="/topizzy_logo.png" alt="Topizzy Logo" width={120} height={120} className={styles.footerLogoImg} />
                 </div>
                 <div className={styles.footerBrandName}>Topizzy</div>
               </div>
@@ -346,22 +398,16 @@ export default function LandingPage() {
               <div className={styles.footerColumn}>
                 <div className={styles.columnTitle}>Product</div>
                 <Link href="/platform">Buy Airtime</Link>
-                <a href="#" onClick={handleComingSoon}>Download App</a>
               </div>
               <div className={styles.footerColumn}>
                 <div className={styles.columnTitle}>Company</div>
-                <a href="#" onClick={handleComingSoon}>Benefits</a>
-                <a href="#" onClick={handleComingSoon}>Contact</a>
+                <a href="#" onClick={handleComingSoon}>Blogs</a>
+                <a href="mailto:hello@topizzy.com">Contact</a>
               </div>
               <div className={styles.footerColumn}>
-                <div className={styles.columnTitle} onClick={handleComingSoon} style={{ cursor: 'pointer' }}>Resources</div>
+                <div className={styles.columnTitle}>Resources</div>
                 <a href="#how-it-works">How it Works</a>
-                <a href="#" onClick={handleComingSoon}>FAQs</a>
-              </div>
-              <div className={styles.footerColumn}>
-                <div className={styles.columnTitle}>Customer Support</div>
-                <a href="#" onClick={handleComingSoon}>Help Center</a>
-                <a href="#" onClick={handleComingSoon}>Security Tips</a>
+                <Link href="/faqs">FAQs</Link>
               </div>
             </div>
           </div>
