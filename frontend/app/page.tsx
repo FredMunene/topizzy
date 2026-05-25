@@ -417,8 +417,8 @@ export default function LandingPage() {
           <div className={styles.footerBottom}>
             <p>&copy; 2026 Topizzy. All rights reserved.</p>
             <div className={styles.footerLegal}>
-              <a href="#" onClick={handleComingSoon}>Terms &amp; Conditions</a>
-              <a href="#" onClick={handleComingSoon}>Privacy Policy</a>
+              <Link href="/terms">Terms &amp; Conditions</Link>
+              <Link href="/privacy">Privacy Policy</Link>
             </div>
           </div>
         </div>
