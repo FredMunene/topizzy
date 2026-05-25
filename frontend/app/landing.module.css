@@ -212,26 +212,30 @@
 }
 
 .networks {
-  margin-top: 1rem;
+  margin-top: 1.25rem;
+}
+
+.networkCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  align-self: flex-start;
 }
 
 .networksLabel {
-  font-size: 0.875rem;
-  color: #666;
-  margin: 0 0 1rem 0;
-  font-weight: 500;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #999;
+  margin: 0;
 }
 
 .networkLogos {
   display: flex;
-  gap: 2rem;
+  gap: 1.5rem;
   flex-wrap: nowrap;
-  background: white;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
   align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .networkLogo {
@@ -242,9 +246,25 @@
 }
 
 .networkLogo img {
-  width: 64px;
-  height: 48px;
+  width: 120px;
+  height: 64px;
   object-fit: contain;
+}
+
+@media (max-width: 480px) {
+  .networkCard {
+    width: 100%;
+  }
+
+  .networkLogos {
+    gap: 1rem;
+    justify-content: space-between;
+  }
+
+  .networkLogo img {
+    width: 88px;
+    height: 48px;
+  }
 }
 
 .heroImage {

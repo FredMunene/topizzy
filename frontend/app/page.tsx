@@ -107,7 +107,7 @@ export default function LandingPage() {
           <div className={styles.heroText}>
             <h1 className={styles.heroTitle}>Turn Crypto Into Airtime Instantly</h1>
             <p className={styles.heroSubtitle}>
-              Easily buy mobile airtime using USDC for any phone number in Kenya.
+              Easily buy mobile airtime and data bundles using USDC for phone numbers across Africa.
             </p>
             <div className={styles.heroButtons}>
               <Link href="/platform" className={styles.primaryButton}>
@@ -115,42 +115,23 @@ export default function LandingPage() {
               </Link>
             </div>
             <div className={styles.networks}>
-              
-              <div className={styles.networkLogos}>
-                <div className={styles.networkLogo}>
-                  <Image
-                    src="/safaricomLogo.png"
-                    alt="Safaricom Logo"
-                    width={80}
-                    height={80}
-                  />
-                </div>
-                <div className={styles.networkLogo}>
-                  <Image
-                    src="/airtelLogo.png"
-                    alt="Airtel Logo"
-                    width={80}
-                    height={80}
-                  />
-                </div>
-                <div className={styles.networkLogo}>
-                  <Image
-                    src="/vodacomLogo.png"
-                    alt="Vodacom Logo"
-                    width={80}
-                    height={80}
-                  />
-                </div>
-                <div className={styles.networkLogo}>
-                  <Image
-                    src="/mtnLogo.png"
-                    alt="MTN Logo"
-                    width={80}
-                    height={80}
-                  />
+              <div className={styles.networkCard}>
+                <p className={styles.networksLabel}>Works with all major networks</p>
+                <div className={styles.networkLogos}>
+                  <div className={styles.networkLogo}>
+                    <Image src="/safaricomLogo.png" alt="Safaricom" width={200} height={80} />
+                  </div>
+                  <div className={styles.networkLogo}>
+                    <Image src="/airtelLogo.png" alt="Airtel" width={72} height={40} />
+                  </div>
+                  <div className={styles.networkLogo}>
+                    <Image src="/vodacomLogo.png" alt="Vodacom" width={72} height={40} />
+                  </div>
+                  <div className={styles.networkLogo}>
+                    <Image src="/mtnLogo.png" alt="MTN" width={72} height={40} />
+                  </div>
                 </div>
               </div>
-              <p className={styles.networksLabel}>Works with all mobile networks</p>
             </div>
           </div>
 
