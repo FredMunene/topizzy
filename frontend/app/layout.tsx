@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Source_Code_Pro } from "next/font/google";
 import { SafeArea } from "@coinbase/onchainkit/minikit";
+import { Analytics } from "@vercel/analytics/next";
 import { minikitConfig } from "@/minikit.config";
 import { RootProvider } from "./rootProvider";
 import "./globals.css";
@@ -74,6 +75,7 @@ export default function RootLayout({
       <html lang="en">
         <body className={`${inter.variable} ${sourceCodePro.variable}`}>
           <SafeArea>{children}</SafeArea>
+          <Analytics />
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
