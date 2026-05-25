@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useState, useCallback} from "react";
 import { Wallet, useIsWalletACoinbaseSmartWallet } from "@coinbase/onchainkit/wallet";
 import { Transaction, TransactionButton, TransactionToast } from "@coinbase/onchainkit/transaction";
@@ -714,16 +715,14 @@ export default function Home() {
             <div className={styles.cardHeader}>
 
               <div className={styles.brandHeader}>
-                <svg className={styles.brandLogo} viewBox="0 0 32 32" fill="none" aria-hidden="true">
-                  <circle cx="16" cy="16" r="16" fill="#5c9c92"/>
-                  <path d="M10 16a6 6 0 1 1 12 0" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
-                  <circle cx="16" cy="16" r="2" fill="#fff"/>
-                  <path d="M16 18v4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-                <div>
-                  <h1 className={styles.brandName}>Topizzy</h1>
-                  <p className={styles.brandTagline}>Pay airtime with crypto</p>
-                </div>
+                <Image
+                  src="/topizzy_logo.png"
+                  alt="Topizzy"
+                  width={52}
+                  height={52}
+                  priority
+                  className={styles.brandLogo}
+                />
               </div>
             </div>
 

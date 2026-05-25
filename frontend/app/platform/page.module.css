@@ -542,28 +542,12 @@
 /* ── Brand header ────────────────────────────────── */
 .brandHeader {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
+  width: 100%;
 }
 
 .brandLogo {
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-}
-
-.brandName {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1a1a1a;
-  margin: 0;
-  line-height: 1.2;
-}
-
-.brandTagline {
-  font-size: 0.8rem;
-  color: #6b7280;
-  margin: 0;
+  object-fit: contain;
 }
 
 /* ── Network warning ─────────────────────────────── */
