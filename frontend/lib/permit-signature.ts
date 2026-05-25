@@ -1,5 +1,6 @@
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
+import { parseSignature } from './permit-utils';
 
 /**
  * Generates an EIP-2612 permit signature for USDC
@@ -91,75 +92,6 @@ export async function generatePermitSignature({
       message
     });
     // No console logging in client bundle
-
-    // Robust signature parsing to support wallets that return v as 0/1 or 27/28
-    // Helper functions to reduce complexity
-    function normalizeSignature(sig: string): string {
-      if (!sig) throw new Error('Empty signature');
-      let s = sig.startsWith('0x') ? sig.slice(2) : sig;
-      
-      // No console logging in client bundle
-      s = s.replace(/^0+/, '').replace(/0+$/, '');
-      // No console logging in client bundle
-      
-      if (!s || s.length === 0) {
-        const orig = sig.startsWith('0x') ? sig.slice(2) : sig;
-        const start = Math.floor((orig.length - 130) / 2);
-        s = orig.slice(start, start + 130).replace(/^0+/, '');
-        // No console logging in client bundle
-      }
-      
-      return s;
-    }
-
-    function normalizeV(v: number): number {
-      if (v === 0) return 27;
-      if (v === 1) return 28;
-      if (v >= 27 && v <= 28) return v;
-      
-      // Handle chain ID embedding or other variants
-      if (v > 28) {
-        const normalized = v & 0xff;
-        return normalizeV(normalized);
-      }
-      
-      return v;
-    }
-
-    function parseStandard65Byte(s: string, r: `0x${string}`): { v: number; r: `0x${string}`; s: `0x${string}` } {
-      const sValue = ('0x' + s.slice(64, 128)) as `0x${string}`;
-      const vHex = s.slice(128, 130) || s.slice(-2);
-      const v = normalizeV(Number.parseInt(vHex, 16));
-      return { v, r, s: sValue };
-    }
-
-    function parseCompact64Byte(s: string, r: `0x${string}`): { v: number; r: `0x${string}`; s: `0x${string}` } {
-      const vsHex = s.slice(64, 128);
-      const vsBig = BigInt('0x' + vsHex);
-      const v = ((vsBig >> 255n) & 1n) === 0n ? 27 : 28;
-      
-      const sBig = vsBig & ((1n << 255n) - 1n);
-      const sHex = sBig.toString(16).padStart(64, '0');
-      const sValue = ('0x' + sHex) as `0x${string}`;
-      return { v, r, s: sValue };
-    }
-
-    function parseSignature(sig: string) {
-      const s = normalizeSignature(sig);
-      
-      if (!s || s.length === 0) {
-        throw new Error(`Invalid signature format. Raw: ${sig}`);
-      }
-      
-      if (s.length !== 130 && s.length !== 128) {
-        throw new Error(`Unexpected signature length after processing: ${s.length} (raw: ${sig})`);
-      }
-
-      const r = ('0x' + s.slice(0, 64)) as `0x${string}`;
-      return s.length === 130 
-        ? parseStandard65Byte(s, r)
-        : parseCompact64Byte(s, r);
-    }
 
     let parsed;
     try {
