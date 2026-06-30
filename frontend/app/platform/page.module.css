@@ -186,12 +186,12 @@
 
 .countrySelect:hover {
   background: #f5f5f5;
-  border-color: #5c9c92;
+  border-color: #7C86FF;
 }
 
 .countrySelect:focus {
-  border-color: #5c9c92;
-  box-shadow: 0 0 0 3px rgba(92, 156, 146, 0.1);
+  border-color: #7C86FF;
+  box-shadow: 0 0 0 3px rgba(124, 134, 255, 0.1);
   outline: none;
 }
 
@@ -218,8 +218,8 @@
 }
 
 .phoneInput:focus {
-  border-color: #5c9c92;
-  box-shadow: 0 0 0 3px rgba(92, 156, 146, 0.1);
+  border-color: #7C86FF;
+  box-shadow: 0 0 0 3px rgba(124, 134, 255, 0.1);
 }
 
 .countryButton {
@@ -294,8 +294,8 @@
 }
 
 .amountInput:focus {
-  border-color: #5c9c92;
-  box-shadow: 0 0 0 3px rgba(92, 156, 146, 0.1);
+  border-color: #7C86FF;
+  box-shadow: 0 0 0 3px rgba(124, 134, 255, 0.1);
 }
 
 /* Remove number input spinners */
@@ -394,7 +394,7 @@
 .continueButton {
   width: 100%;
   padding: 0.875rem;
-  background: #5c9c92;
+  background: #7C86FF;
   color: white;
   border: none;
   border-radius: 8px;
@@ -406,9 +406,9 @@
 }
 
 .continueButton:hover:not(:disabled) {
-  background: #4a8179;
+  background: #6B75E6;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(92, 156, 146, 0.3);
+  box-shadow: 0 4px 12px rgba(124, 134, 255, 0.3);
 }
 
 .continueButton:active:not(:disabled) {
@@ -510,15 +510,15 @@
 .summaryValueLarge {
   font-weight: 600;
   font-size: 1.125rem;
-  color: #5c9c92;
+  color: #7C86FF;
 }
 
 .backButton {
   width: 100%;
   padding: 0.875rem;
   background: transparent;
-  color: #5c9c92;
-  border: 1px solid #5c9c92;
+  color: #7C86FF;
+  border: 1px solid #7C86FF;
   border-radius: 8px;
   font-size: 1rem;
   font-weight: 500;
@@ -528,7 +528,74 @@
 }
 
 .backButton:hover {
-  background: #f0f7f6;
+  background: #EEF0FF;
+}
+
+/* ── Order status display ────────────────────────── */
+.statusDisplay {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ── Brand header ────────────────────────────────── */
+.brandHeader {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.brandLogo {
+  object-fit: contain;
+  transform: scale(1.9);
+  transform-origin: center;
+}
+
+/* ── Network warning ─────────────────────────────── */
+.networkWarning {
+  color: #92660a;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.networkSwitchBtn {
+  background: none;
+  border: none;
+  color: #92660a;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0;
+}
+
+/* ── Processing spinner ──────────────────────────── */
+.processingMessage {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #EEF0FF;
+  border: 1px solid #7C86FF;
+  color: #5057c4;
+  padding: 0.875rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  margin-top: 1rem;
+}
+
+.spinnerIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Responsive */

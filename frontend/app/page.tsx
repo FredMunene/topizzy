@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import styles from './landing.module.css';
 
+
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
@@ -21,10 +22,10 @@ export default function LandingPage() {
       <header className={styles.header}>
         <div className={styles.headerContent}>
           <div className={styles.logo}>
-            <Image 
-              src="/topizzy_logo.png" 
-              alt="Topizzy Logo" 
-              width={120} 
+            <Image
+              src="/topizzy_logo.png"
+              alt="Topizzy Logo"
+              width={120}
               height={120}
               priority
             />
@@ -33,8 +34,8 @@ export default function LandingPage() {
 
           <nav className={`${styles.nav} ${isMenuOpen ? styles.navOpen : ''}`}>
             <a href="#how-it-works" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>How It Works</a>
-            <a href="#" className={styles.navLink} onClick={(e) => { setIsMenuOpen(false); handleComingSoon(e); }}>FAQs</a>
-            <Link href="/platform" className={styles.ctaButton} onClick={() => setIsMenuOpen(false)}>Connect Wallet</Link>
+            <Link href="/faqs" className={styles.navLink} onClick={() => setIsMenuOpen(false)}>FAQs</Link>
+            <Link href="/platform" className={styles.ctaButton} onClick={() => setIsMenuOpen(false)}>Open App</Link>
           </nav>
 
           <button 
@@ -55,7 +56,7 @@ export default function LandingPage() {
           <div className={styles.heroText}>
             <h1 className={styles.heroTitle}>Turn Crypto Into Airtime Instantly</h1>
             <p className={styles.heroSubtitle}>
-              Easily buy mobile airtime using USDC for any phone number in Kenya.
+              Easily buy mobile airtime and data bundles using USDC for phone numbers across Africa.
             </p>
             <div className={styles.heroButtons}>
               <Link href="/platform" className={styles.primaryButton}>
@@ -63,42 +64,23 @@ export default function LandingPage() {
               </Link>
             </div>
             <div className={styles.networks}>
-              
-              <div className={styles.networkLogos}>
-                <div className={styles.networkLogo}>
-                  <Image
-                    src="/safaricomLogo.png"
-                    alt="Safaricom Logo"
-                    width={80}
-                    height={80}
-                  />
-                </div>
-                <div className={styles.networkLogo}>
-                  <Image
-                    src="/airtelLogo.png"
-                    alt="Airtel Logo"
-                    width={80}
-                    height={80}
-                  />
-                </div>
-                <div className={styles.networkLogo}>
-                  <Image
-                    src="/vodacomLogo.png"
-                    alt="Vodacom Logo"
-                    width={80}
-                    height={80}
-                  />
-                </div>
-                <div className={styles.networkLogo}>
-                  <Image
-                    src="/mtnLogo.png"
-                    alt="MTN Logo"
-                    width={80}
-                    height={80}
-                  />
+              <div className={styles.networkCard}>
+                <p className={styles.networksLabel}>Works with all major networks</p>
+                <div className={styles.networkLogos}>
+                  <div className={styles.networkLogo}>
+                    <Image src="/safaricomLogo.png" alt="Safaricom" width={200} height={80} />
+                  </div>
+                  <div className={styles.networkLogo}>
+                    <Image src="/airtelLogo.png" alt="Airtel" width={72} height={40} />
+                  </div>
+                  <div className={styles.networkLogo}>
+                    <Image src="/vodacomLogo.png" alt="Vodacom" width={72} height={40} />
+                  </div>
+                  <div className={styles.networkLogo}>
+                    <Image src="/mtnLogo.png" alt="MTN" width={72} height={40} />
+                  </div>
                 </div>
               </div>
-              <p className={styles.networksLabel}>Works with all mobile networks</p>
             </div>
           </div>
 
@@ -327,7 +309,7 @@ export default function LandingPage() {
             <div className={styles.footerBrand}>
               <div className={styles.footerBrandHeader}>
                 <div className={styles.footerLogo}>
-                  <Image src="/topizzy_logo.png" alt="Topizzy Logo" width={120} height={120} />
+                  <Image src="/topizzy_logo.png" alt="Topizzy Logo" width={120} height={120} className={styles.footerLogoImg} />
                 </div>
                 <div className={styles.footerBrandName}>Topizzy</div>
               </div>
@@ -346,22 +328,16 @@ export default function LandingPage() {
               <div className={styles.footerColumn}>
                 <div className={styles.columnTitle}>Product</div>
                 <Link href="/platform">Buy Airtime</Link>
-                <a href="#" onClick={handleComingSoon}>Download App</a>
               </div>
               <div className={styles.footerColumn}>
                 <div className={styles.columnTitle}>Company</div>
-                <a href="#" onClick={handleComingSoon}>Benefits</a>
-                <a href="#" onClick={handleComingSoon}>Contact</a>
+                <a href="#" onClick={handleComingSoon}>Blogs</a>
+                <a href="mailto:hello@topizzy.com">Contact</a>
               </div>
               <div className={styles.footerColumn}>
-                <div className={styles.columnTitle} onClick={handleComingSoon} style={{ cursor: 'pointer' }}>Resources</div>
+                <div className={styles.columnTitle}>Resources</div>
                 <a href="#how-it-works">How it Works</a>
-                <a href="#" onClick={handleComingSoon}>FAQs</a>
-              </div>
-              <div className={styles.footerColumn}>
-                <div className={styles.columnTitle}>Customer Support</div>
-                <a href="#" onClick={handleComingSoon}>Help Center</a>
-                <a href="#" onClick={handleComingSoon}>Security Tips</a>
+                <Link href="/faqs">FAQs</Link>
               </div>
             </div>
           </div>
@@ -371,8 +347,8 @@ export default function LandingPage() {
           <div className={styles.footerBottom}>
             <p>&copy; 2026 Topizzy. All rights reserved.</p>
             <div className={styles.footerLegal}>
-              <a href="#" onClick={handleComingSoon}>Terms &amp; Conditions</a>
-              <a href="#" onClick={handleComingSoon}>Privacy Policy</a>
+              <Link href="/terms">Terms &amp; Conditions</Link>
+              <Link href="/privacy">Privacy Policy</Link>
             </div>
           </div>
         </div>

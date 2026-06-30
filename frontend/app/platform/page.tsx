@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useState, useCallback} from "react";
 import { Wallet, useIsWalletACoinbaseSmartWallet } from "@coinbase/onchainkit/wallet";
 import { Transaction, TransactionButton, TransactionToast } from "@coinbase/onchainkit/transaction";
@@ -712,7 +713,17 @@ export default function Home() {
         {!order ? (
           <div className={styles.card}>
             <div className={styles.cardHeader}>
-              <h1 className={styles.cardTitle}>Buy Airtime</h1>
+
+              <div className={styles.brandHeader}>
+                <Image
+                  src="/topizzy_logo.png"
+                  alt="Topizzy"
+                  width={56}
+                  height={56}
+                  priority
+                  className={styles.brandLogo}
+                />
+              </div>
             </div>
 
             <div className={styles.cardBody}>
@@ -735,7 +746,15 @@ export default function Home() {
                     ))}
                   </select>
                   <div className={styles.phoneInputWithFlag}>
-                    <span className={styles.flagIcon}>{selectedCountry.code === 'KE' ? '🇰🇪' : selectedCountry.code === 'RW' ? '🇷🇼' : selectedCountry.code === 'UG' ? '🇺🇬' : selectedCountry.code === 'ZA' ? '🇿🇦' : '🇹🇿'}</span>
+                    <span className={styles.flagIcon}>
+                      {selectedCountry.code === 'KE' ? '🇰🇪'
+                        : selectedCountry.code === 'RW' ? '🇷🇼'
+                        : selectedCountry.code === 'UG' ? '🇺🇬'
+                        : selectedCountry.code === 'ZA' ? '🇿🇦'
+                        : selectedCountry.code === 'GH' ? '🇬🇭'
+                        : selectedCountry.code === 'NG' ? '🇳🇬'
+                        : '🇹🇿'}
+                    </span>
                     <input
                       type="tel"
                       placeholder="743913802"
@@ -803,21 +822,9 @@ export default function Home() {
                   </svg>
                   wallet balance USDC {usdcBalanceFormatted}
                   {chain && chain.id !== 8453 && (
-                    <div style={{color: 'orange', fontSize: '12px'}}>
-                      Connected to {chain.name}. 
-                      <button 
-                        onClick={switchToBaseMainnet}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'orange',
-                          textDecoration: 'underline',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          padding: 0,
-                          marginLeft: '4px'
-                        }}
-                      >
+                    <div className={styles.networkWarning}>
+                      Connected to {chain.name}.
+                      <button onClick={switchToBaseMainnet} className={styles.networkSwitchBtn}>
                         Switch to Base Mainnet
                       </button>
                     </div>
@@ -962,8 +969,15 @@ export default function Home() {
               {/* Order Status Display */}
               {orderStatus && (
                 <div className={styles.statusDisplay}>
-                  
-                  
+                  {(orderStatus.status === 'processing' || (orderStatus.status === 'pending' && orderStatus.tx_hash)) && (
+                    <div className={styles.processingMessage}>
+                      <svg className={styles.spinnerIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40 20" strokeLinecap="round"/>
+                      </svg>
+                      Sending airtime to your phone…
+                    </div>
+                  )}
+
                   {orderStatus.status === 'fulfilled' && (
                     <div className={styles.successMessage}>
                       <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
