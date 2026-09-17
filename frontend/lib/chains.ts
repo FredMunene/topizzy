@@ -79,11 +79,10 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     usdcDecimals: 6,
     airtimeContractAddress: process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS_ARC as `0x${string}` | undefined,
     blockExplorerUrl: 'https://explorer.arc.io',
-    // Arc's native USDC is exposed via a precompile rather than a standard deployed
-    // ERC-20 contract. Whether it implements EIP-2612 permit() has not been verified
-    // yet — until confirmed with a live testnet transaction, treat it as unsupported
-    // and use the plain approve + deposit() path instead of depositWithPermit().
-    supportsPermit: false,
+    // Confirmed: Arc's USDC implements EIP-2612 permit() (domain name "USDC",
+    // version "2"), same as Base. Circle's own arc-node repo demonstrates it:
+    // https://github.com/circlefin/arc-node/issues/164
+    supportsPermit: true,
   },
 };
 

@@ -140,13 +140,13 @@ Arc's block explorer (https://explorer.arc.io) is not Etherscan-based, so
 `--verify --etherscan-api-key` doesn't apply here — verify manually through
 the explorer once it's live if source verification is supported.
 
-**Before relying on `depositWithPermit()` on Arc:** Arc's native USDC is exposed
-through a fixed precompile-style address rather than a standard deployed ERC-20
-contract, and it isn't yet confirmed whether it implements EIP-2612 `permit()`.
-Run a live testnet transaction to confirm before enabling the gasless permit
-flow for Arc in the frontend (`frontend/lib/chains.ts` → `CHAINS.arc.supportsPermit`).
-Until then, the frontend falls back to a plain `approve()` + `deposit()` flow
-on Arc, which works regardless of permit support.
+**`depositWithPermit()` on Arc:** confirmed working. Arc's USDC implements
+EIP-2612 `permit()` with domain name `"USDC"` and version `"2"`, same as Base
+(see Circle's own arc-node repo: https://github.com/circlefin/arc-node/issues/164).
+The frontend uses the gasless permit flow for both chains
+(`frontend/lib/chains.ts` → `CHAINS.arc.supportsPermit = true`). The plain
+`approve()` + `deposit()` path stays in the codebase as a fallback for any
+future chain added without permit support.
 
 ## Post-Deployment
 
