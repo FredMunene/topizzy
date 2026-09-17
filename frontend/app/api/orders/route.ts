@@ -45,7 +45,10 @@ export async function POST(request: NextRequest) {
       "27": "ZAR",
     };
 
-    const currency = currencyMap[countryCode] || "KES"; // Default to KES if not found
+    // istanbul ignore next -- unreachable: countryCode (line 37) can only be
+    // one of dialingCodes or its own "254" fallback, and both sets are exactly
+    // currencyMap's keys, so this fallback can never actually trigger.
+    const currency = currencyMap[countryCode] || "KES";
 
     // Amount restrictions mapping
     const amountRestrictions: { [key: string]: { lower: number; upper: number } } = {
@@ -56,7 +59,9 @@ export async function POST(request: NextRequest) {
       "27": { lower: 5, upper: 65 }, // South Africa
     };
 
-    const restrictions = amountRestrictions[countryCode] || amountRestrictions["254"]; // Default to Kenya if not found
+    // istanbul ignore next -- unreachable: same reasoning as the currency
+    // fallback above — countryCode is always a key of amountRestrictions.
+    const restrictions = amountRestrictions[countryCode] || amountRestrictions["254"];
 
     if (amountKes < restrictions.lower || amountKes > restrictions.upper) {
       return NextResponse.json(
