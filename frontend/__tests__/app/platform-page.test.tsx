@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
@@ -37,7 +37,10 @@ jest.mock('@coinbase/onchainkit/minikit', () => ({
 }));
 
 // Outcome the mocked TransactionButton produces when clicked, configurable per test.
-let mockTransactionOutcome: { type: 'success'; txHash: string } | { type: 'error'; message: string } = {
+let mockTransactionOutcome:
+  | { type: 'success'; txHash: string }
+  | { type: 'success-no-hash' }
+  | { type: 'error'; message: string } = {
   type: 'success',
   txHash: '0xsmarttx',
 };
@@ -64,6 +67,8 @@ jest.mock('@coinbase/onchainkit/transaction', () => ({
               transactionReceipts: [{ transactionHash: mockTransactionOutcome.txHash }],
             });
             capturedTransactionProps.onStatus?.({ statusName: 'success' });
+          } else if (mockTransactionOutcome.type === 'success-no-hash') {
+            await capturedTransactionProps.onSuccess?.({ transactionReceipts: [] });
           } else {
             capturedTransactionProps.onError?.({ message: mockTransactionOutcome.message });
           }
@@ -491,6 +496,69 @@ describe('Platform page', () => {
       await screen.findByText('Confirm Payment');
       fireEvent.click(screen.getByText('Back'));
       expect(await screen.findByPlaceholderText('743913802')).toBeInTheDocument();
+    });
+  });
+
+  describe('Smart wallet payment flow', () => {
+    async function reachConfirmScreenAsSmartWallet() {
+      mockUseIsWalletACoinbaseSmartWallet.mockReturnValue(true);
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      // The order-status query's first resolution (undefined -> 'pending')
+      // fires an effect that resets smartFlowStarted to false. Let it settle
+      // before clicking, or a click that lands just before it resolves gets
+      // silently undone.
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/orders/order-ref-1')
+      ));
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    }
+
+    it('starts the smart wallet flow and pays successfully', async () => {
+      mockTransactionOutcome = { type: 'success', txHash: '0xsmarttx1' };
+      await reachConfirmScreenAsSmartWallet();
+
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      const txButton = await screen.findByTestId('transaction-button');
+      fireEvent.click(txButton);
+
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/airtime/send', expect.objectContaining({
+        body: expect.stringContaining('0xsmarttx1'),
+      })));
+    });
+
+    it('shows the error message when the smart wallet transaction fails', async () => {
+      mockTransactionOutcome = { type: 'error', message: 'Smart wallet transaction reverted' };
+      await reachConfirmScreenAsSmartWallet();
+
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      const txButton = await screen.findByTestId('transaction-button');
+      fireEvent.click(txButton);
+
+      expect(await screen.findByText('Smart wallet transaction reverted')).toBeInTheDocument();
+    });
+
+    it('surfaces the smartWalletCalls error when the chain has no configured contract', async () => {
+      mockGetChainConfigById.mockReturnValue({ ...BASE_CONFIG, airtimeContractAddress: undefined });
+      await reachConfirmScreenAsSmartWallet();
+
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      const txButton = await screen.findByTestId('transaction-button');
+      fireEvent.click(txButton);
+
+      expect(await screen.findByText(/not available for payments right now/)).toBeInTheDocument();
+    });
+
+    it('shows an error when the wallet omits the transaction hash on success', async () => {
+      mockTransactionOutcome = { type: 'success-no-hash' };
+      await reachConfirmScreenAsSmartWallet();
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      const txButton = await screen.findByTestId('transaction-button');
+      fireEvent.click(txButton);
+      expect(await screen.findByText('Missing transaction hash from wallet')).toBeInTheDocument();
     });
   });
 });
