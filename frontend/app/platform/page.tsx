@@ -697,13 +697,20 @@ export default function Home() {
     });
   };
 
-  const usdcBalanceFormatted = usdcBalance 
+  const usdcBalanceFormatted = usdcBalance
     ? Number.parseFloat(formatUnits(usdcBalance.value, 6)).toFixed(2)
     : "0.00";
 
   // Normalized connection flags and button labels (avoid nested ternaries and negated conditions)
   const isConnected = Boolean(effectiveAddress);
   const continueDisabled = createOrderMutation.isPending || !isConnected || !phoneNumber || !amountKes || !!validationError || isPriceLoading;
+
+  const spendableBalanceUsdc = usdcBalance
+    ? parseFloat(formatUnits(usdcBalance.value, 6)) - gasReserveUsdc
+    : 0;
+  const hasInsufficientBalance = Boolean(
+    isConnected && amountKes && parseFloat(amountUsdc) > spendableBalanceUsdc
+  );
   let continueButtonText: string;
   if (createOrderMutation.isPending) {
     continueButtonText = 'Creating Order...';
@@ -869,41 +876,62 @@ export default function Home() {
                     )}
                   </button>
                 </div>
-                <div className={styles.balanceInfo}>
-                  <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
-                    <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1" fill="none"/>
-                    <text x="8" y="11" fontSize="10" textAnchor="middle" fill="currentColor">i</text>
-                  </svg>
-                  wallet balance USDC {usdcBalanceFormatted} on {activeChainConfig.displayName}
-                  {gasReserveUsdc > 0 && (
-                    <span className={styles.gasReserveNote}> (~${gasReserveUsdc.toFixed(2)} reserved for network fees)</span>
-                  )}
-                  {chain && !([CHAINS.base.chain.id, CHAINS.arc.chain.id] as number[]).includes(chain.id) && (
-                    <div className={styles.networkWarning}>
-                      Connected to {chain.name}, which isn&apos;t supported.
-                      <button onClick={() => switchToChain('base')} className={styles.networkSwitchBtn}>
-                        Switch to Base
-                      </button>
-                      <button onClick={() => switchToChain('arc')} className={styles.networkSwitchBtn}>
-                        Switch to Arc
-                      </button>
-                    </div>
-                  )}
-                  {isConnected && (
-                    <div className={styles.networkSelector}>
-                      {(Object.keys(CHAINS) as ChainKey[]).map((key) => (
+                {isConnected && hasInsufficientBalance ? (
+                  <div className={styles.balanceBannerWarning}>
+                    <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                      <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                    </svg>
+                    <span>
+                      Wallet balance {usdcBalanceFormatted} USDC on {activeChainConfig.displayName}. Top up to continue.
+                      {gasReserveUsdc > 0 && (
+                        <span className={styles.gasReserveNote}> (~${gasReserveUsdc.toFixed(2)} of that is reserved for network fees)</span>
+                      )}
+                    </span>
+                  </div>
+                ) : (
+                  <div className={styles.balanceInfo}>
+                    <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
+                      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1" fill="none"/>
+                      <text x="8" y="11" fontSize="10" textAnchor="middle" fill="currentColor">i</text>
+                    </svg>
+                    wallet balance USDC {usdcBalanceFormatted} on {activeChainConfig.displayName}
+                    {gasReserveUsdc > 0 && (
+                      <span className={styles.gasReserveNote}> (~${gasReserveUsdc.toFixed(2)} reserved for network fees)</span>
+                    )}
+                  </div>
+                )}
+
+                {chain && !([CHAINS.base.chain.id, CHAINS.arc.chain.id] as number[]).includes(chain.id) && (
+                  <div className={styles.networkWarning}>
+                    Connected to {chain.name}, which isn&apos;t supported.
+                    <button onClick={() => switchToChain('base')} className={styles.networkSwitchBtn}>
+                      Switch to Base
+                    </button>
+                    <button onClick={() => switchToChain('arc')} className={styles.networkSwitchBtn}>
+                      Switch to Arc
+                    </button>
+                  </div>
+                )}
+
+                <div className={styles.chainToggleRow}>
+                  <div className={styles.chainToggleGroup}>
+                    {(Object.keys(CHAINS) as ChainKey[]).map((key) => {
+                      const isActive = activeChainConfig.key === key;
+                      return (
                         <button
                           key={key}
                           type="button"
                           onClick={() => switchToChain(key)}
-                          disabled={activeChainConfig.key === key}
-                          className={activeChainConfig.key === key ? styles.networkOptionActive : styles.networkOption}
+                          disabled={isActive}
+                          className={isActive ? styles.chainToggleBtnActive : styles.chainToggleBtn}
                         >
+                          {isActive && <span className={styles.chainToggleDot} />}
                           {CHAINS[key].displayName}
                         </button>
-                      ))}
-                    </div>
-                  )}
+                      );
+                    })}
+                  </div>
                   <span className={styles.exchangeRate}>
                     1 USDC = {currentCurrency} {price > 0 ? price.toFixed(2) : '0.00'}
                   </span>
@@ -930,6 +958,9 @@ export default function Home() {
               >
                 <span>{continueButtonText}</span>
               </button>
+              {hasInsufficientBalance && (
+                <div className={styles.continueHelperText}>Add USDC to your wallet to continue</div>
+              )}
 
               {/* Warning */}
               <div className={styles.warning}>
