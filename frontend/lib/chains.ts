@@ -1,0 +1,101 @@
+import { defineChain } from 'viem';
+import { base, baseSepolia } from 'viem/chains';
+
+/**
+ * Arc is Circle's USDC-native EVM L1. Gas is paid in USDC itself, so there is
+ * no separate native token to hold. USDC is exposed at a fixed precompile-style
+ * address (same value on mainnet and testnet) with the standard 6-decimal
+ * ERC-20 interface used everywhere else in this codebase.
+ * Source: https://docs.arc.io/arc/references/contract-addresses
+ *         https://docs.arc.io/arc/references/connect-to-arc
+ */
+export const arc = defineChain({
+  id: 5042,
+  name: 'Arc',
+  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+  rpcUrls: {
+    default: { http: [process.env.NEXT_PUBLIC_ARC_RPC_URL || 'https://rpc.mainnet.arc.io'] },
+  },
+  blockExplorers: {
+    default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' },
+  },
+});
+
+export const arcTestnet = defineChain({
+  id: 5042002,
+  name: 'Arc Testnet',
+  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+  rpcUrls: {
+    default: { http: [process.env.NEXT_PUBLIC_ARC_TESTNET_RPC_URL || 'https://rpc.testnet.arc.io'] },
+  },
+  blockExplorers: {
+    default: { name: 'Arc Testnet Explorer', url: 'https://explorer.testnet.arc.io' },
+  },
+  testnet: true,
+});
+
+/** The fixed USDC address on Arc — identical on mainnet and testnet. */
+const ARC_USDC_ADDRESS = '0x3600000000000000000000000000000000000000' as const;
+
+export type ChainKey = 'base' | 'arc';
+
+export type ChainConfig = {
+  key: ChainKey;
+  chain: typeof base | typeof arc;
+  /** Chain used when deploying/testing against a testnet instead. */
+  testnetChain: typeof baseSepolia | typeof arcTestnet;
+  displayName: string;
+  usdcAddress: `0x${string}`;
+  usdcDecimals: number;
+  airtimeContractAddress: `0x${string}` | undefined;
+  blockExplorerUrl: string;
+  /** Whether depositWithPermit (EIP-2612 gasless approval) is known to work on this chain. */
+  supportsPermit: boolean;
+};
+
+// Base Mainnet USDC — https://developers.circle.com/stablecoins/usdc-contract-addresses
+const BASE_USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
+
+export const CHAINS: Record<ChainKey, ChainConfig> = {
+  base: {
+    key: 'base',
+    chain: base,
+    testnetChain: baseSepolia,
+    displayName: 'Base',
+    usdcAddress: BASE_USDC_ADDRESS,
+    usdcDecimals: 6,
+    airtimeContractAddress: process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS_BASE as `0x${string}` | undefined
+      // fall back to the original single-chain env var so existing deployments keep working
+      ?? (process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS as `0x${string}` | undefined),
+    blockExplorerUrl: 'https://basescan.org',
+    supportsPermit: true,
+  },
+  arc: {
+    key: 'arc',
+    chain: arc,
+    testnetChain: arcTestnet,
+    displayName: 'Arc',
+    usdcAddress: ARC_USDC_ADDRESS,
+    usdcDecimals: 6,
+    airtimeContractAddress: process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS_ARC as `0x${string}` | undefined,
+    blockExplorerUrl: 'https://explorer.arc.io',
+    // Arc's native USDC is exposed via a precompile rather than a standard deployed
+    // ERC-20 contract. Whether it implements EIP-2612 permit() has not been verified
+    // yet — until confirmed with a live testnet transaction, treat it as unsupported
+    // and use the plain approve + deposit() path instead of depositWithPermit().
+    supportsPermit: false,
+  },
+};
+
+export const DEFAULT_CHAIN_KEY: ChainKey = 'base';
+
+export function getChainConfigById(chainId: number | undefined): ChainConfig {
+  if (chainId === arc.id) return CHAINS.arc;
+  return CHAINS.base;
+}
+
+export function getChainConfig(key: ChainKey): ChainConfig {
+  return CHAINS[key];
+}
+
+export const SUPPORTED_CHAIN_IDS = Object.values(CHAINS).map((c) => c.chain.id);

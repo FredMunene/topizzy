@@ -7,14 +7,13 @@ import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
 import { useCapabilities } from 'wagmi/experimental'
-import { parseUnits, formatUnits, encodeFunctionData, erc20Abi } from 'viem'
+import { parseUnits, formatUnits, encodeFunctionData, erc20Abi, createPublicClient, http } from 'viem'
 import type { Abi } from 'abitype'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
+import { CHAINS, getChainConfigById, type ChainKey } from '@/lib/chains'
 import styles from "./page.module.css";
 
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}` // Base Mainnet USDC
-const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
 
 async function logToServer(level: 'info' | 'error', message: string, meta?: Record<string, unknown>) {
@@ -55,7 +54,8 @@ export default function Home() {
   const [shouldPoll, setShouldPoll] = useState(true);
   const { address: wagmiAddress, chain } = useAccount();
   const { data: wagmiWalletClient } = useWalletClient();
-  const { data: walletCapabilities } = useCapabilities({ chainId: 8453 });
+  const activeChainConfig = getChainConfigById(chain?.id);
+  const { data: walletCapabilities } = useCapabilities({ chainId: activeChainConfig.chain.id });
   const miniKitRuntime = ((_miniObj?.kit ?? _miniObj) as unknown) as Record<string, unknown> | undefined;
   const coinbaseSmartWallet = useIsWalletACoinbaseSmartWallet();
   const atomicBatchSupported = (walletCapabilities as { atomicBatch?: { supported?: boolean } } | undefined)?.atomicBatch?.supported;
@@ -196,15 +196,18 @@ export default function Home() {
     };
   }, [wagmiAddress, miniKitRuntime, isMiniApp]);
 
-  // Switch to Base Mainnet
-  const switchToBaseMainnet = async () => {
+  // Switch (or add) the connected wallet to a supported chain
+  const switchToChain = async (key: ChainKey) => {
+    const target = CHAINS[key];
     const ethereum = (window as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
     if (!ethereum) return;
-    
+
+    const chainIdHex = `0x${target.chain.id.toString(16)}`;
+
     try {
       await ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x2105' }], // 8453 in hex
+        params: [{ chainId: chainIdHex }],
       });
     } catch (error: unknown) {
       // If network doesn't exist, add it
@@ -213,19 +216,15 @@ export default function Home() {
           await ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: '0x2105',
-              chainName: 'Base Mainnet',
-              nativeCurrency: {
-                name: 'Ethereum',
-                symbol: 'ETH',
-                decimals: 18,
-              },
-              rpcUrls: ['https://mainnet.base.org'],
-              blockExplorerUrls: ['https://basescan.org'],
+              chainId: chainIdHex,
+              chainName: target.chain.name,
+              nativeCurrency: target.chain.nativeCurrency,
+              rpcUrls: [target.chain.rpcUrls.default.http[0]],
+              blockExplorerUrls: [target.blockExplorerUrl],
             }],
           });
         } catch (err) {
-          void logToServer('error', 'Failed to add Base Mainnet', { error: String(err) });
+          void logToServer('error', `Failed to add ${target.displayName}`, { error: String(err) });
         }
       } else {
         void logToServer('error', 'Failed to switch network', { error: String(error) });
@@ -233,10 +232,11 @@ export default function Home() {
     }
   };
 
-  // Get USDC balance (use effective address from either MiniKit or wagmi)
+  // Get USDC balance on the active chain (use effective address from either MiniKit or wagmi)
   const { data: usdcBalance } = useBalance({
     address: effectiveAddress,
-    token: USDC_ADDRESS,
+    token: activeChainConfig.usdcAddress,
+    chainId: activeChainConfig.chain.id,
   });
 
 
@@ -353,7 +353,7 @@ export default function Home() {
 
   // Create order mutation
   const createOrderMutation = useMutation({
-    mutationFn: async (data: { phoneNumber: string; amountKes: number; walletAddress: string }) => {
+    mutationFn: async (data: { phoneNumber: string; amountKes: number; walletAddress: string; chainId: number }) => {
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -433,57 +433,83 @@ export default function Home() {
         }
         
         const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-        const amountWei = parseUnits(order.amountUsdc.toString(), 6); // USDC has 6 decimals
-        
-        // Ensure the connected wallet supports typed data signing
-        if (!unifiedWalletClient || typeof unifiedWalletClient.signTypedData !== 'function') {
-          throw new Error('Connected wallet does not support EIP-712 signing');
+        const amountWei = parseUnits(order.amountUsdc.toString(), activeChainConfig.usdcDecimals);
+        const airtimeContractAddress = activeChainConfig.airtimeContractAddress;
+        if (!airtimeContractAddress) {
+          throw new Error(`${activeChainConfig.displayName} is not available for payments right now`);
         }
 
-        // Adapter to satisfy the strict walletClient.signTypedData type expected by generatePermitSignature
-        const signingClient: { signTypedData: (params: { account: `0x${string}`; domain: Record<string, unknown>; types: Record<string, unknown>; primaryType: string; message: Record<string, unknown>; }) => Promise<string>; } = {
-          signTypedData: async (params) => {
-            const accountParam = (params.account ?? effectiveAddress) as `0x${string}`;
-            // Delegate to unifiedWalletClient.signTypedData which accepts a looser param shape
-            return await (unifiedWalletClient.signTypedData as (p: SignTypedDataParams) => Promise<string>)(
-              { ...params, account: accountParam } as unknown as SignTypedDataParams
-            );
-          }
-        };
-
-        // Generate permit signature
-        const permitSig = await generatePermitSignature({
-          tokenAddress: USDC_ADDRESS,
-          owner: effectiveAddress as `0x${string}`,
-          spender: AIRTIME_CONTRACT_ADDRESS,
-          value: amountWei,
-          deadline,
-          walletClient: signingClient,
-          chainId: (await unifiedWalletClient.getChainId?.()) ?? 8453 // use wallet chainId when available
-        });
-        
-        if (permitSig.error) throw new Error(permitSig.error);
-        if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
-        
-        // Call smart contract (token address now stored in contract)
         if (typeof unifiedWalletClient.writeContract !== 'function') {
           throw new Error('Connected wallet cannot send transactions');
         }
 
-        const txHash = await unifiedWalletClient.writeContract({
-          address: AIRTIME_CONTRACT_ADDRESS,
-          abi: AIRTIME_ABI,
-          functionName: 'depositWithPermit',
-          args: [
-            order.orderRef,
-            amountWei,
-            BigInt(deadline),
-            permitSig.v,
-            permitSig.r,
-            permitSig.s
-          ]
-        });
-        
+        let txHash: unknown;
+
+        if (activeChainConfig.supportsPermit) {
+          // Ensure the connected wallet supports typed data signing
+          if (!unifiedWalletClient || typeof unifiedWalletClient.signTypedData !== 'function') {
+            throw new Error('Connected wallet does not support EIP-712 signing');
+          }
+
+          // Adapter to satisfy the strict walletClient.signTypedData type expected by generatePermitSignature
+          const signingClient: { signTypedData: (params: { account: `0x${string}`; domain: Record<string, unknown>; types: Record<string, unknown>; primaryType: string; message: Record<string, unknown>; }) => Promise<string>; } = {
+            signTypedData: async (params) => {
+              const accountParam = (params.account ?? effectiveAddress) as `0x${string}`;
+              // Delegate to unifiedWalletClient.signTypedData which accepts a looser param shape
+              return await (unifiedWalletClient.signTypedData as (p: SignTypedDataParams) => Promise<string>)(
+                { ...params, account: accountParam } as unknown as SignTypedDataParams
+              );
+            }
+          };
+
+          // Generate permit signature
+          const permitSig = await generatePermitSignature({
+            tokenAddress: activeChainConfig.usdcAddress,
+            owner: effectiveAddress as `0x${string}`,
+            spender: airtimeContractAddress,
+            value: amountWei,
+            deadline,
+            walletClient: signingClient,
+            chainId: (await unifiedWalletClient.getChainId?.()) ?? activeChainConfig.chain.id,
+            chain: activeChainConfig.chain
+          });
+
+          if (permitSig.error) throw new Error(permitSig.error);
+          if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
+
+          txHash = await unifiedWalletClient.writeContract({
+            address: airtimeContractAddress,
+            abi: AIRTIME_ABI,
+            functionName: 'depositWithPermit',
+            args: [
+              order.orderRef,
+              amountWei,
+              BigInt(deadline),
+              permitSig.v,
+              permitSig.r,
+              permitSig.s
+            ]
+          });
+        } else {
+          // Chains where gasless permit isn't confirmed to work: approve then deposit as two txs.
+          const approveTxHash = await unifiedWalletClient.writeContract({
+            address: activeChainConfig.usdcAddress,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [airtimeContractAddress, amountWei]
+          });
+
+          const publicClient = createPublicClient({ chain: activeChainConfig.chain, transport: http() });
+          await publicClient.waitForTransactionReceipt({ hash: approveTxHash as `0x${string}` });
+
+          txHash = await unifiedWalletClient.writeContract({
+            address: airtimeContractAddress,
+            abi: AIRTIME_ABI,
+            functionName: 'deposit',
+            args: [order.orderRef, amountWei]
+          });
+        }
+
         const result = await sendAirtime(order.orderRef, txHash as string);
         void logToServer('info', 'EOA tx completed', { orderRef: order.orderRef, txHash });
         return result;
@@ -532,18 +558,22 @@ export default function Home() {
     if (!order) {
       throw new Error('No order available to pay');
     }
-    const amountWei = parseUnits(order.amountUsdc.toString(), 6);
+    const airtimeContractAddress = activeChainConfig.airtimeContractAddress;
+    if (!airtimeContractAddress) {
+      throw new Error(`${activeChainConfig.displayName} is not available for payments right now`);
+    }
+    const amountWei = parseUnits(order.amountUsdc.toString(), activeChainConfig.usdcDecimals);
     return [
       {
-        to: USDC_ADDRESS,
+        to: activeChainConfig.usdcAddress,
         data: encodeFunctionData({
           abi: erc20Abi,
           functionName: 'approve',
-          args: [AIRTIME_CONTRACT_ADDRESS, amountWei]
+          args: [airtimeContractAddress, amountWei]
         })
       },
       {
-        to: AIRTIME_CONTRACT_ADDRESS,
+        to: airtimeContractAddress,
         data: encodeFunctionData({
           abi: AIRTIME_ABI as Abi,
           functionName: 'deposit',
@@ -551,7 +581,7 @@ export default function Home() {
         })
       }
     ];
-  }, [order]);
+  }, [order, activeChainConfig]);
 
   const handleSmartWalletSuccess = useCallback(async ({ transactionReceipts }: { transactionReceipts: { transactionHash: string }[] }) => {
     if (!order) return;
@@ -619,6 +649,7 @@ export default function Home() {
       phoneNumber: fullPhoneNumber,
       amountKes: Number.parseFloat(amountKes),
       walletAddress: effectiveAddress,
+      chainId: activeChainConfig.chain.id,
     });
   };
 
@@ -820,13 +851,31 @@ export default function Home() {
                     <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1" fill="none"/>
                     <text x="8" y="11" fontSize="10" textAnchor="middle" fill="currentColor">i</text>
                   </svg>
-                  wallet balance USDC {usdcBalanceFormatted}
-                  {chain && chain.id !== 8453 && (
+                  wallet balance USDC {usdcBalanceFormatted} on {activeChainConfig.displayName}
+                  {chain && !([CHAINS.base.chain.id, CHAINS.arc.chain.id] as number[]).includes(chain.id) && (
                     <div className={styles.networkWarning}>
-                      Connected to {chain.name}.
-                      <button onClick={switchToBaseMainnet} className={styles.networkSwitchBtn}>
-                        Switch to Base Mainnet
+                      Connected to {chain.name}, which isn&apos;t supported.
+                      <button onClick={() => switchToChain('base')} className={styles.networkSwitchBtn}>
+                        Switch to Base
                       </button>
+                      <button onClick={() => switchToChain('arc')} className={styles.networkSwitchBtn}>
+                        Switch to Arc
+                      </button>
+                    </div>
+                  )}
+                  {isConnected && (
+                    <div className={styles.networkSelector}>
+                      {(Object.keys(CHAINS) as ChainKey[]).map((key) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => switchToChain(key)}
+                          disabled={activeChainConfig.key === key}
+                          className={activeChainConfig.key === key ? styles.networkOptionActive : styles.networkOption}
+                        >
+                          {CHAINS[key].displayName}
+                        </button>
+                      ))}
                     </div>
                   )}
                   <span className={styles.exchangeRate}>
@@ -912,9 +961,9 @@ export default function Home() {
               {isSmartWallet ? (
                 smartFlowStarted ? (
                   <Transaction
-                    chainId={8453}
+                    chainId={activeChainConfig.chain.id}
                     calls={smartWalletCalls}
-                    isSponsored
+                    isSponsored={activeChainConfig.key === 'base'}
                     onStatus={(status) => {
                       const busyStates = ['buildingTransaction', 'transactionPending', 'transactionLegacyExecuted'];
                       if (busyStates.includes(status.statusName)) {
@@ -991,8 +1040,8 @@ export default function Home() {
                     <div className={styles.errorMessage}>
                       {orderStatus.refund_tx_hash && (
                         <div style={{marginTop: '8px', fontSize: '12px'}}>
-                          <a 
-                            href={`https://basescan.org/tx/${orderStatus.refund_tx_hash}`}
+                          <a
+                            href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{color: '#0ea5e9', textDecoration: 'underline'}}
