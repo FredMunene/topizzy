@@ -360,6 +360,9 @@ export async function POST(request: NextRequest) {
           console.error('Failed to update order with refund tx hash:', updateError)
         }
 
+        // istanbul ignore next -- unreachable: errorMessage (line 275) is
+        // already resolved through its own '|| Unknown error' fallback, so
+        // it can never be falsy here.
         const normalizedError = errorMessage || 'Airtime send failed';
         return NextResponse.json({ 
           error: normalizedError, 
