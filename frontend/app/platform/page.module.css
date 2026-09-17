@@ -345,25 +345,62 @@
   color: #c62828;
 }
 
-.balanceInfo {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  color: #6b6b6b;
-  margin-top: 0.5rem;
-  flex-wrap: wrap;
-}
-
 .exchangeRate {
   margin-left: auto;
   font-weight: 500;
   color: #4a4a4a;
 }
 
-.gasReserveNote {
-  color: #8a8a8a;
-  font-size: 0.7rem;
+.amountLabelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.amountLabelRow .label {
+  margin-bottom: 0;
+}
+
+.balanceLabel {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #4a4a4a;
+}
+
+.insufficientBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ffebee;
+  color: #c62828;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.amountInputError {
+  border-color: #ef5350;
+}
+
+.useMaxButton {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.625rem;
+  background: #fff;
+  border: 1px solid #7C86FF;
+  border-radius: 8px;
+  color: #4f5fe0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.useMaxButton:hover {
+  background: #f5f6ff;
 }
 
 .paymentPreview {
@@ -576,24 +613,6 @@
   cursor: pointer;
   font-size: 0.75rem;
   padding: 0;
-}
-
-/* ── Insufficient balance banner ─────────────────── */
-.balanceBannerWarning {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  background: #ffebee;
-  color: #c62828;
-  padding: 0.875rem;
-  border-radius: 10px;
-  font-size: 0.8125rem;
-  margin-top: 0.625rem;
-}
-
-.balanceBannerWarning .infoIcon {
-  flex-shrink: 0;
-  margin-top: 1px;
 }
 
 /* ── Chain toggle ─────────────────────────────────── */

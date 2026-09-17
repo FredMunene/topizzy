@@ -41,30 +41,6 @@ function fmtUsdc(n: number): string {
   return n.toFixed(2);
 }
 
-/**
- * Single canonical copy for the insufficient-balance state — used both to
- * disable the Continue button (via validationError) and in the balance
- * banner, so the two never drift into different wording or numbers for the
- * same fact. The network-fee note only appears when this chain actually
- * charges one (Arc); it's omitted outright on chains that don't, rather than
- * showing a zero or stale figure.
- */
-function buildInsufficientBalanceMessage({
-  balanceUsdc,
-  neededUsdc,
-  chainName,
-  gasReserveUsdc,
-}: {
-  balanceUsdc: number;
-  neededUsdc: number;
-  chainName: string;
-  gasReserveUsdc: number;
-}): string {
-  const shortfall = Math.max(neededUsdc - balanceUsdc, 0);
-  const feeNote = gasReserveUsdc > 0 ? ` Includes a ~${fmtUsdc(gasReserveUsdc)} USDC network fee.` : '';
-  return `Insufficient balance on ${chainName}. You have ${fmtUsdc(balanceUsdc)} USDC — this needs ${fmtUsdc(neededUsdc)} USDC (${fmtUsdc(shortfall)} more).${feeNote}`;
-}
-
 export default function Home() {
   const mini = useMiniKit();
   // avoid unused var lint and prefer explicit narrow types
@@ -390,15 +366,10 @@ export default function Home() {
       const balanceUsdc = parseFloat(formatUnits(usdcBalance.value, 6));
       const spendableBalance = balanceUsdc - gasReserveUsdc;
       if (parseFloat(amountUsdc) > spendableBalance) {
-        setValidationError(buildInsufficientBalanceMessage({
-          balanceUsdc,
-          neededUsdc: parseFloat(amountUsdc) + gasReserveUsdc,
-          chainName: activeChainConfig.displayName,
-          gasReserveUsdc,
-        }));
+        setValidationError('Insufficient balance');
       }
     }
-  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc, gasReserveUsdc, activeChainConfig]);
+  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc, gasReserveUsdc]);
 
   // Validate on amount change
   useEffect(() => {
@@ -744,6 +715,16 @@ export default function Home() {
   const hasInsufficientBalance = Boolean(
     isConnected && amountKes && parseFloat(amountUsdc) > spendableBalanceUsdc
   );
+
+  // Largest airtime amount payable with what's left after reserving gas
+  // (only nonzero on chains where USDC also pays for gas, e.g. Arc).
+  const maxSpendableUsdc = Math.max(spendableBalanceUsdc, 0);
+  const maxSpendableKes = price > 0 ? Math.floor(maxSpendableUsdc * price * 100) / 100 : 0;
+
+  const handleUseMaxAmount = () => {
+    setAmountKes(maxSpendableKes > 0 ? maxSpendableKes.toString() : '');
+  };
+
   let continueButtonText: string;
   if (createOrderMutation.isPending) {
     continueButtonText = 'Creating Order...';
@@ -870,9 +851,22 @@ export default function Home() {
 
               {/* Amount */}
               <div className={styles.formGroup}>
-                <label className={styles.label}>Amount ({currentCurrency})</label>
-                {validationError && !hasInsufficientBalance && (
-                  <div className={styles.errorMessage}>{validationError}</div>
+                <div className={styles.amountLabelRow}>
+                  <label className={styles.label}>Amount ({currentCurrency})</label>
+                  {isConnected && (
+                    <span className={styles.balanceLabel}>Balance ${usdcBalanceFormatted}</span>
+                  )}
+                </div>
+                {validationError && (
+                  <div className={hasInsufficientBalance ? styles.insufficientBanner : styles.errorMessage}>
+                    {hasInsufficientBalance && (
+                      <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                        <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                      </svg>
+                    )}
+                    {validationError}
+                  </div>
                 )}
                 <div className={styles.amountInputWrapper}>
                   <input
@@ -880,14 +874,14 @@ export default function Home() {
                     placeholder="100"
                     value={amountKes}
                     onChange={(e) => setAmountKes(e.target.value)}
-                    className={styles.amountInput}
+                    className={`${styles.amountInput} ${hasInsufficientBalance ? styles.amountInputError : ''}`}
                     min="0"
                     step="any"
                   />
-                  <button 
+                  <button
                     className={`${styles.balanceButton} ${
-                      !amountKes ? '' : 
-                      validationError ? styles.balanceButtonError : 
+                      !amountKes ? '' :
+                      validationError ? styles.balanceButtonError :
                       styles.balanceButtonSuccess
                     }`}
                     type="button"
@@ -909,32 +903,11 @@ export default function Home() {
                     )}
                   </button>
                 </div>
-                {isConnected && hasInsufficientBalance ? (
-                  <div className={styles.balanceBannerWarning}>
-                    <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
-                      <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
-                    </svg>
-                    <span>
-                      {buildInsufficientBalanceMessage({
-                        balanceUsdc: usdcBalance ? Number.parseFloat(formatUnits(usdcBalance.value, 6)) : 0,
-                        neededUsdc: parseFloat(amountUsdc) + gasReserveUsdc,
-                        chainName: activeChainConfig.displayName,
-                        gasReserveUsdc,
-                      })}
-                    </span>
-                  </div>
-                ) : (
-                  <div className={styles.balanceInfo}>
-                    <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
-                      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1" fill="none"/>
-                      <text x="8" y="11" fontSize="10" textAnchor="middle" fill="currentColor">i</text>
-                    </svg>
-                    wallet balance {usdcBalanceFormatted} USDC on {activeChainConfig.displayName}
-                    {gasReserveUsdc > 0 && (
-                      <span className={styles.gasReserveNote}> (includes a ~{fmtUsdc(gasReserveUsdc)} USDC network fee reserve)</span>
-                    )}
-                  </div>
+
+                {isConnected && (
+                  <button type="button" className={styles.useMaxButton} onClick={handleUseMaxAmount}>
+                    Use max amount (${fmtUsdc(maxSpendableUsdc)})
+                  </button>
                 )}
 
                 {chain && !([CHAINS.base.chain.id, CHAINS.arc.chain.id] as number[]).includes(chain.id) && (
