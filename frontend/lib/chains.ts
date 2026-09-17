@@ -1,4 +1,4 @@
-import { defineChain } from 'viem';
+import { createPublicClient, formatUnits, http, defineChain } from 'viem';
 import { base, baseSepolia } from 'viem/chains';
 
 /**
@@ -51,6 +51,12 @@ export type ChainConfig = {
   blockExplorerUrl: string;
   /** Whether depositWithPermit (EIP-2612 gasless approval) is known to work on this chain. */
   supportsPermit: boolean;
+  /**
+   * True when USDC is also the chain's native gas token (Arc), so a single
+   * balance has to cover both the payment amount and the network fee. False
+   * when gas is paid in a separate native asset (Base pays gas in ETH).
+   */
+  usdcIsGasToken: boolean;
 };
 
 // Base Mainnet USDC — https://developers.circle.com/stablecoins/usdc-contract-addresses
@@ -69,6 +75,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
       ?? (process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS as `0x${string}` | undefined),
     blockExplorerUrl: 'https://basescan.org',
     supportsPermit: true,
+    usdcIsGasToken: false,
   },
   arc: {
     key: 'arc',
@@ -83,6 +90,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     // version "2"), same as Base. Circle's own arc-node repo demonstrates it:
     // https://github.com/circlefin/arc-node/issues/164
     supportsPermit: true,
+    usdcIsGasToken: true,
   },
 };
 
@@ -98,3 +106,46 @@ export function getChainConfig(key: ChainKey): ChainConfig {
 }
 
 export const SUPPORTED_CHAIN_IDS = Object.values(CHAINS).map((c) => c.chain.id);
+
+/**
+ * Conservative gas-limit estimate for a `depositWithPermit` call: ecrecover +
+ * permit's nonce/allowance writes + transferFrom + our own order accounting
+ * writes + event. Arc's own guidance targets ~$0.001 for a plain ERC-20
+ * transfer (https://docs.arc.io/arc/references/gas-and-fees); depositWithPermit
+ * does meaningfully more work than a transfer, so this is sized generously
+ * rather than measured against a live deployment.
+ */
+const DEPOSIT_WITH_PERMIT_GAS_LIMIT = 220_000n;
+
+/** Safety margin on top of the estimated fee to absorb price movement between estimate and broadcast. */
+const GAS_ESTIMATE_SAFETY_MARGIN = 1.3;
+
+/** Static fallback reserve (in whole USDC) used only if live fee estimation fails. */
+const FALLBACK_GAS_RESERVE_USDC = 0.05;
+
+/**
+ * How much USDC balance to hold back for network fees before comparing
+ * against a payment amount. Zero on chains where gas is paid in a separate
+ * native asset (Base). On Arc, gas and the payment draw from the same USDC
+ * balance, so per Arc's own dApp guidance we query live EIP-1559 fee data
+ * and reserve for "value transfers and gas costs combined" rather than
+ * hardcoding a fee: https://docs.arc.io/arc/references/gas-and-fees
+ */
+export async function estimateGasReserveUsdc(config: ChainConfig): Promise<number> {
+  if (!config.usdcIsGasToken) return 0;
+
+  try {
+    const publicClient = createPublicClient({ chain: config.chain, transport: http() });
+    const fees = await publicClient.estimateFeesPerGas();
+    const feePerGas = fees.maxFeePerGas ?? (await publicClient.getGasPrice());
+    const reserveWei = feePerGas * DEPOSIT_WITH_PERMIT_GAS_LIMIT;
+    // Native gas accounting on Arc uses 18 decimals for USDC (same value as
+    // the 6-decimal ERC-20 view, just scaled differently) — see
+    // https://docs.arc.io/arc/references/connect-to-arc
+    const reserveUsdc = Number(formatUnits(reserveWei, config.chain.nativeCurrency.decimals));
+    return reserveUsdc * GAS_ESTIMATE_SAFETY_MARGIN;
+  } catch (err) {
+    console.warn('[chains] gas reserve estimation failed, using static fallback', err);
+    return FALLBACK_GAS_RESERVE_USDC;
+  }
+}

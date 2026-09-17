@@ -11,7 +11,7 @@ import { parseUnits, formatUnits, encodeFunctionData, erc20Abi, createPublicClie
 import type { Abi } from 'abitype'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
-import { CHAINS, getChainConfigById, type ChainKey } from '@/lib/chains'
+import { CHAINS, getChainConfigById, estimateGasReserveUsdc, type ChainKey } from '@/lib/chains'
 import styles from "./page.module.css";
 
 type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
@@ -239,7 +239,24 @@ export default function Home() {
     chainId: activeChainConfig.chain.id,
   });
 
+  // On chains where USDC is also the gas token (Arc), the payment amount and
+  // the network fee draw from the same balance, so hold back an estimated
+  // fee before comparing the amount against what's spendable.
+  const [gasReserveUsdc, setGasReserveUsdc] = useState(0);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeChainConfig.usdcIsGasToken) {
+      setGasReserveUsdc(0);
+      return;
+    }
+    estimateGasReserveUsdc(activeChainConfig).then((reserve) => {
+      if (!cancelled) setGasReserveUsdc(reserve);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChainConfig]);
 
   const fullPhoneNumber = selectedCountry.prefix + phoneNumber;
   const currencyMap: { [key: string]: string } = {
@@ -337,12 +354,18 @@ export default function Home() {
       return;
     }
 
-    // Check USDC balance
-    if (usdcBalance && parseFloat(amountUsdc) > parseFloat(formatUnits(usdcBalance.value, 6))) {
-      const diff = (parseFloat(amountUsdc) - parseFloat(formatUnits(usdcBalance.value, 6))).toFixed(2);
-      setValidationError(`Amount exceed balance. You can transact $ -${diff}`);
+    // Check USDC balance, holding back the estimated network fee on chains
+    // where USDC also pays for gas (Arc) so the balance check doesn't pass
+    // and then fail at broadcast time with nothing left for gas.
+    if (usdcBalance) {
+      const spendableBalance = parseFloat(formatUnits(usdcBalance.value, 6)) - gasReserveUsdc;
+      if (parseFloat(amountUsdc) > spendableBalance) {
+        const diff = (parseFloat(amountUsdc) - spendableBalance).toFixed(2);
+        const reserveNote = gasReserveUsdc > 0 ? ` (~$${gasReserveUsdc.toFixed(2)} held back for network fees)` : '';
+        setValidationError(`Amount exceeds balance. You can transact $ -${diff}${reserveNote}`);
+      }
     }
-  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc]);
+  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc, gasReserveUsdc]);
 
   // Validate on amount change
   useEffect(() => {
@@ -852,6 +875,9 @@ export default function Home() {
                     <text x="8" y="11" fontSize="10" textAnchor="middle" fill="currentColor">i</text>
                   </svg>
                   wallet balance USDC {usdcBalanceFormatted} on {activeChainConfig.displayName}
+                  {gasReserveUsdc > 0 && (
+                    <span className={styles.gasReserveNote}> (~${gasReserveUsdc.toFixed(2)} reserved for network fees)</span>
+                  )}
                   {chain && !([CHAINS.base.chain.id, CHAINS.arc.chain.id] as number[]).includes(chain.id) && (
                     <div className={styles.networkWarning}>
                       Connected to {chain.name}, which isn&apos;t supported.

@@ -361,6 +361,11 @@
   color: #4a4a4a;
 }
 
+.gasReserveNote {
+  color: #8a8a8a;
+  font-size: 0.7rem;
+}
+
 .paymentPreview {
   display: flex;
   justify-content: space-between;
