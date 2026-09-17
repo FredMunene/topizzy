@@ -16,6 +16,10 @@ import styles from "./page.module.css";
 
 type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
 
+// Mirrors the default in app/api/orders/route.ts — keep both in sync (or set
+// NEXT_PUBLIC_SERVICE_FEE, which that route also reads, as the single source).
+const SERVICE_FEE_USDC = parseFloat(process.env.NEXT_PUBLIC_SERVICE_FEE || '0.05');
+
 async function logToServer(level: 'info' | 'error', message: string, meta?: Record<string, unknown>) {
   try {
     await fetch('/api/log', {
@@ -359,13 +363,16 @@ export default function Home() {
       return;
     }
 
-    // Check USDC balance, holding back the estimated network fee on chains
-    // where USDC also pays for gas (Arc) so the balance check doesn't pass
-    // and then fail at broadcast time with nothing left for gas.
+    // Check USDC balance against the full cost of the transaction: the
+    // airtime amount plus the service fee, minus whatever's held back for
+    // gas on chains where USDC also pays for gas (Arc) — otherwise the
+    // balance check can pass and the order still fail at broadcast/creation
+    // time with not enough left for the fee or gas.
     if (usdcBalance) {
       const balanceUsdc = parseFloat(formatUnits(usdcBalance.value, 6));
       const spendableBalance = balanceUsdc - gasReserveUsdc;
-      if (parseFloat(amountUsdc) > spendableBalance) {
+      const totalCostUsdc = parseFloat(amountUsdc) + SERVICE_FEE_USDC;
+      if (totalCostUsdc > spendableBalance) {
         setValidationError('Insufficient balance');
       }
     }
@@ -709,16 +716,19 @@ export default function Home() {
   const isConnected = Boolean(effectiveAddress);
   const continueDisabled = createOrderMutation.isPending || !isConnected || !phoneNumber || !amountKes || !!validationError || isPriceLoading;
 
+  // Total USDC available for this transaction after holding back gas
+  // (nonzero only on chains where USDC also pays for gas, e.g. Arc).
   const spendableBalanceUsdc = usdcBalance
     ? parseFloat(formatUnits(usdcBalance.value, 6)) - gasReserveUsdc
     : 0;
   const hasInsufficientBalance = Boolean(
-    isConnected && amountKes && parseFloat(amountUsdc) > spendableBalanceUsdc
+    isConnected && amountKes && (parseFloat(amountUsdc) + SERVICE_FEE_USDC) > spendableBalanceUsdc
   );
 
-  // Largest airtime amount payable with what's left after reserving gas
-  // (only nonzero on chains where USDC also pays for gas, e.g. Arc).
-  const maxSpendableUsdc = Math.max(spendableBalanceUsdc, 0);
+  // Largest airtime amount payable with what's left after reserving gas and
+  // the flat service fee — both are subtracted from spendable balance before
+  // converting the remainder to local currency.
+  const maxSpendableUsdc = Math.max(spendableBalanceUsdc - SERVICE_FEE_USDC, 0);
   const maxSpendableKes = price > 0 ? Math.floor(maxSpendableUsdc * price * 100) / 100 : 0;
 
   const handleUseMaxAmount = () => {
