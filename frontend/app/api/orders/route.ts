@@ -6,10 +6,7 @@ import { getChainConfigById, DEFAULT_CHAIN_KEY, CHAINS } from '@/lib/chains';
 const supabaseUrl = process.env.NEXT_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_SUPABASE_ANON_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-// NEXT_PUBLIC_SERVICE_FEE is the source of truth (the frontend needs to read
-// it too, for balance checks and the max-amount button); SERVICE_FEE is kept
-// as a fallback for existing deployments that only set the non-public var.
-const SERVICE_FEE = parseFloat(process.env.NEXT_PUBLIC_SERVICE_FEE || process.env.SERVICE_FEE || '0.05'); // Default 0.05 USDC
+const SERVICE_FEE = parseFloat(process.env.SERVICE_FEE || '0.05'); // Default 0.05 USDC
 
 // Create a Supabase client with the service key
 const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey, {

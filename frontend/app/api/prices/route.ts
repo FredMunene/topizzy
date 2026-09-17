@@ -26,6 +26,11 @@ function getSpread(currency: string): number {
   return SPREADS[currency] ?? DEFAULT_SPREAD;
 }
 
+// Server-only source of truth for the flat per-order service fee. Exposed to
+// the frontend through this response instead of a NEXT_PUBLIC_ env var, so
+// there's exactly one place that sets it — see app/api/orders/route.ts.
+const SERVICE_FEE = parseFloat(process.env.SERVICE_FEE || '0.05');
+
 // In-memory cache to prevent concurrent API calls
 const pendingRequests = new Map<string, Promise<number>>();
 
@@ -62,14 +67,14 @@ export async function GET(request: NextRequest) {
     // If price exists and is less than 15 seconds old, return it
     if (priceFromDb && new Date(priceFromDb.updated_at) > fifteenSecondsAgo) {
       lastSuccessfulPrice = priceFromDb;
-      return NextResponse.json({ success: true, price: priceFromDb.price });
+      return NextResponse.json({ success: true, price: priceFromDb.price, serviceFee: SERVICE_FEE });
     }
 
     // Check if there's already a pending request for this currency
     const cacheKey = `USDC-${currency}`;
     if (pendingRequests.has(cacheKey)) {
       const cachedPrice = await pendingRequests.get(cacheKey)!;
-      return NextResponse.json({ success: true, price: cachedPrice });
+      return NextResponse.json({ success: true, price: cachedPrice, serviceFee: SERVICE_FEE });
     }
 
     // Create a new request promise
@@ -117,7 +122,7 @@ export async function GET(request: NextRequest) {
     
     try {
       const price = await fetchPromise;
-      return NextResponse.json({ success: true, price });
+      return NextResponse.json({ success: true, price, serviceFee: SERVICE_FEE });
     } finally {
       pendingRequests.delete(cacheKey);
     }

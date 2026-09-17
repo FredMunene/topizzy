@@ -16,9 +16,10 @@ import styles from "./page.module.css";
 
 type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
 
-// Mirrors the default in app/api/orders/route.ts — keep both in sync (or set
-// NEXT_PUBLIC_SERVICE_FEE, which that route also reads, as the single source).
-const SERVICE_FEE_USDC = parseFloat(process.env.NEXT_PUBLIC_SERVICE_FEE || '0.05');
+// Fallback used only until /api/prices responds — the server (which reads
+// the one SERVICE_FEE env var) is the actual source of truth, returned as
+// `serviceFee` on every /api/prices response.
+const DEFAULT_SERVICE_FEE_USDC = 0.05;
 
 async function logToServer(level: 'info' | 'error', message: string, meta?: Record<string, unknown>) {
   try {
@@ -334,6 +335,7 @@ export default function Home() {
   });
 
   const price = priceData?.price || 0;
+  const serviceFeeUsdc = typeof priceData?.serviceFee === 'number' ? priceData.serviceFee : DEFAULT_SERVICE_FEE_USDC;
   const amountUsdc = amountKes && price > 0 ? (Number.parseFloat(amountKes) / price).toFixed(2) : "0.00";
   
   // Validate input
@@ -371,12 +373,12 @@ export default function Home() {
     if (usdcBalance) {
       const balanceUsdc = parseFloat(formatUnits(usdcBalance.value, 6));
       const spendableBalance = balanceUsdc - gasReserveUsdc;
-      const totalCostUsdc = parseFloat(amountUsdc) + SERVICE_FEE_USDC;
+      const totalCostUsdc = parseFloat(amountUsdc) + serviceFeeUsdc;
       if (totalCostUsdc > spendableBalance) {
         setValidationError('Insufficient balance');
       }
     }
-  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc, gasReserveUsdc]);
+  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc, gasReserveUsdc, serviceFeeUsdc]);
 
   // Validate on amount change
   useEffect(() => {
@@ -722,13 +724,13 @@ export default function Home() {
     ? parseFloat(formatUnits(usdcBalance.value, 6)) - gasReserveUsdc
     : 0;
   const hasInsufficientBalance = Boolean(
-    isConnected && amountKes && (parseFloat(amountUsdc) + SERVICE_FEE_USDC) > spendableBalanceUsdc
+    isConnected && amountKes && (parseFloat(amountUsdc) + serviceFeeUsdc) > spendableBalanceUsdc
   );
 
   // Largest airtime amount payable with what's left after reserving gas and
   // the flat service fee — both are subtracted from spendable balance before
   // converting the remainder to local currency.
-  const maxSpendableUsdc = Math.max(spendableBalanceUsdc - SERVICE_FEE_USDC, 0);
+  const maxSpendableUsdc = Math.max(spendableBalanceUsdc - serviceFeeUsdc, 0);
   const maxSpendableKes = price > 0 ? Math.floor(maxSpendableUsdc * price * 100) / 100 : 0;
 
   const handleUseMaxAmount = () => {
