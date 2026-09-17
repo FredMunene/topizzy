@@ -36,6 +36,35 @@ const countries = [
   { code: 'ZA', name: 'South Africa', prefix: '+27' }
 ];
 
+/** Fixed 2-decimal precision for every USDC amount shown to the user. */
+function fmtUsdc(n: number): string {
+  return n.toFixed(2);
+}
+
+/**
+ * Single canonical copy for the insufficient-balance state — used both to
+ * disable the Continue button (via validationError) and in the balance
+ * banner, so the two never drift into different wording or numbers for the
+ * same fact. The network-fee note only appears when this chain actually
+ * charges one (Arc); it's omitted outright on chains that don't, rather than
+ * showing a zero or stale figure.
+ */
+function buildInsufficientBalanceMessage({
+  balanceUsdc,
+  neededUsdc,
+  chainName,
+  gasReserveUsdc,
+}: {
+  balanceUsdc: number;
+  neededUsdc: number;
+  chainName: string;
+  gasReserveUsdc: number;
+}): string {
+  const shortfall = Math.max(neededUsdc - balanceUsdc, 0);
+  const feeNote = gasReserveUsdc > 0 ? ` Includes a ~${fmtUsdc(gasReserveUsdc)} USDC network fee.` : '';
+  return `Insufficient balance on ${chainName}. You have ${fmtUsdc(balanceUsdc)} USDC — this needs ${fmtUsdc(neededUsdc)} USDC (${fmtUsdc(shortfall)} more).${feeNote}`;
+}
+
 export default function Home() {
   const mini = useMiniKit();
   // avoid unused var lint and prefer explicit narrow types
@@ -358,14 +387,18 @@ export default function Home() {
     // where USDC also pays for gas (Arc) so the balance check doesn't pass
     // and then fail at broadcast time with nothing left for gas.
     if (usdcBalance) {
-      const spendableBalance = parseFloat(formatUnits(usdcBalance.value, 6)) - gasReserveUsdc;
+      const balanceUsdc = parseFloat(formatUnits(usdcBalance.value, 6));
+      const spendableBalance = balanceUsdc - gasReserveUsdc;
       if (parseFloat(amountUsdc) > spendableBalance) {
-        const diff = (parseFloat(amountUsdc) - spendableBalance).toFixed(2);
-        const reserveNote = gasReserveUsdc > 0 ? ` (~$${gasReserveUsdc.toFixed(2)} held back for network fees)` : '';
-        setValidationError(`Amount exceeds balance. You can transact $ -${diff}${reserveNote}`);
+        setValidationError(buildInsufficientBalanceMessage({
+          balanceUsdc,
+          neededUsdc: parseFloat(amountUsdc) + gasReserveUsdc,
+          chainName: activeChainConfig.displayName,
+          gasReserveUsdc,
+        }));
       }
     }
-  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc, gasReserveUsdc]);
+  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc, gasReserveUsdc, activeChainConfig]);
 
   // Validate on amount change
   useEffect(() => {
@@ -698,7 +731,7 @@ export default function Home() {
   };
 
   const usdcBalanceFormatted = usdcBalance
-    ? Number.parseFloat(formatUnits(usdcBalance.value, 6)).toFixed(2)
+    ? fmtUsdc(Number.parseFloat(formatUnits(usdcBalance.value, 6)))
     : "0.00";
 
   // Normalized connection flags and button labels (avoid nested ternaries and negated conditions)
@@ -838,7 +871,7 @@ export default function Home() {
               {/* Amount */}
               <div className={styles.formGroup}>
                 <label className={styles.label}>Amount ({currentCurrency})</label>
-                {validationError && (
+                {validationError && !hasInsufficientBalance && (
                   <div className={styles.errorMessage}>{validationError}</div>
                 )}
                 <div className={styles.amountInputWrapper}>
@@ -883,10 +916,12 @@ export default function Home() {
                       <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
                     </svg>
                     <span>
-                      Wallet balance {usdcBalanceFormatted} USDC on {activeChainConfig.displayName}. Top up to continue.
-                      {gasReserveUsdc > 0 && (
-                        <span className={styles.gasReserveNote}> (~${gasReserveUsdc.toFixed(2)} of that is reserved for network fees)</span>
-                      )}
+                      {buildInsufficientBalanceMessage({
+                        balanceUsdc: usdcBalance ? Number.parseFloat(formatUnits(usdcBalance.value, 6)) : 0,
+                        neededUsdc: parseFloat(amountUsdc) + gasReserveUsdc,
+                        chainName: activeChainConfig.displayName,
+                        gasReserveUsdc,
+                      })}
                     </span>
                   </div>
                 ) : (
@@ -895,9 +930,9 @@ export default function Home() {
                       <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1" fill="none"/>
                       <text x="8" y="11" fontSize="10" textAnchor="middle" fill="currentColor">i</text>
                     </svg>
-                    wallet balance USDC {usdcBalanceFormatted} on {activeChainConfig.displayName}
+                    wallet balance {usdcBalanceFormatted} USDC on {activeChainConfig.displayName}
                     {gasReserveUsdc > 0 && (
-                      <span className={styles.gasReserveNote}> (~${gasReserveUsdc.toFixed(2)} reserved for network fees)</span>
+                      <span className={styles.gasReserveNote}> (includes a ~{fmtUsdc(gasReserveUsdc)} USDC network fee reserve)</span>
                     )}
                   </div>
                 )}
