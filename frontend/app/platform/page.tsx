@@ -894,20 +894,24 @@ export default function Home() {
 
           {orderStatus.status === 'refunded' && (
             <div className={styles.errorMessage}>
-              We couldn&apos;t deliver this airtime, so the airtime cost has been refunded to your wallet.
-              {orderStatus.refund_tx_hash && (
-                <>
-                  {' '}
-                  <a
-                    href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{color: '#0ea5e9', textDecoration: 'underline'}}
-                  >
-                    View refund transaction
-                  </a>
-                </>
-              )}
+              {/* One element so the text and link flow as a single paragraph
+                  (.errorMessage is display:flex and would split them). */}
+              <span>
+                We couldn&apos;t deliver this airtime, so the airtime cost has been refunded to your wallet.
+                {orderStatus.refund_tx_hash && (
+                  <>
+                    {' '}
+                    <a
+                      href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{color: '#0ea5e9', textDecoration: 'underline'}}
+                    >
+                      View refund transaction
+                    </a>
+                  </>
+                )}
+              </span>
             </div>
           )}
         </div>
