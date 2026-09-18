@@ -47,6 +47,8 @@ let mockTransactionOutcome:
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let capturedTransactionProps: any = null;
+// Status the mocked TransactionButton reports to the page's render prop.
+let mockTransactionButtonStatus: 'default' | 'pending' | 'success' | 'error' = 'default';
 jest.mock('@coinbase/onchainkit/transaction', () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   Transaction: (props: any) => {
@@ -54,33 +56,36 @@ jest.mock('@coinbase/onchainkit/transaction', () => ({
     return <div data-testid="transaction">{props.children}</div>;
   },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  TransactionButton: (props: any) => (
-    <button
-      type="button"
-      data-testid="transaction-button"
-      disabled={props.disabled}
-      onClick={async () => {
-        try {
-          await capturedTransactionProps.calls();
-          if (mockTransactionOutcome.type === 'success') {
-            capturedTransactionProps.onStatus?.({ statusName: 'buildingTransaction' });
-            await capturedTransactionProps.onSuccess?.({
-              transactionReceipts: [{ transactionHash: mockTransactionOutcome.txHash }],
-            });
-            capturedTransactionProps.onStatus?.({ statusName: 'success' });
-          } else if (mockTransactionOutcome.type === 'success-no-hash') {
-            await capturedTransactionProps.onSuccess?.({ transactionReceipts: [] });
-          } else {
-            capturedTransactionProps.onError?.({ message: mockTransactionOutcome.message });
-          }
-        } catch (err) {
-          capturedTransactionProps.onError?.({ message: err instanceof Error ? err.message : String(err) });
+  TransactionButton: (props: any) => {
+    const simulateClick = async () => {
+      try {
+        await capturedTransactionProps.calls();
+        if (mockTransactionOutcome.type === 'success') {
+          capturedTransactionProps.onStatus?.({ statusName: 'buildingTransaction' });
+          await capturedTransactionProps.onSuccess?.({
+            transactionReceipts: [{ transactionHash: mockTransactionOutcome.txHash }],
+          });
+          capturedTransactionProps.onStatus?.({ statusName: 'success' });
+        } else if (mockTransactionOutcome.type === 'success-no-hash') {
+          await capturedTransactionProps.onSuccess?.({ transactionReceipts: [] });
+        } else {
+          capturedTransactionProps.onError?.({ message: mockTransactionOutcome.message });
         }
-      }}
-    >
-      {props.text}
-    </button>
-  ),
+      } catch (err) {
+        capturedTransactionProps.onError?.({ message: err instanceof Error ? err.message : String(err) });
+      }
+    };
+    // The page supplies its own `render` (to link "View transaction" to the
+    // right explorer); drive it the way OnchainKit would.
+    return props.render({
+      status: mockTransactionButtonStatus,
+      context: { transactionHash: '0xarctxhash' },
+      onSubmit: simulateClick,
+      // Same rule as OnchainKit: once there's a receipt (success) the button
+      // is always enabled so it can act as "View transaction".
+      isDisabled: mockTransactionButtonStatus !== 'success' && Boolean(props.disabled),
+    });
+  },
   TransactionToast: () => <div data-testid="transaction-toast" />,
 }));
 
@@ -240,6 +245,7 @@ describe('Platform page', () => {
     mockWaitForTransactionReceipt.mockReset().mockResolvedValue({ status: 'success' });
     mockTransactionOutcome = { type: 'success', txHash: '0xsmarttx' };
     capturedTransactionProps = null;
+    mockTransactionButtonStatus = 'default';
     jest.spyOn(console, 'log').mockImplementation(() => {});
     jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -598,22 +604,77 @@ describe('Platform page', () => {
       })));
     });
 
-    it('renders the transaction toast last, below the order-status section and above Back', async () => {
+    it('renders the pay/view-transaction button below the order-status section and above Back', async () => {
       mockTransactionOutcome = { type: 'success', txHash: '0xsmarttx1' };
-      await reachConfirmScreenAsSmartWallet();
-
+      const { queryClient } = await reachConfirmScreenAsSmartWallet();
       fireEvent.click(screen.getByText('Pay & Send Airtime'));
       const txButton = await screen.findByTestId('transaction-button');
-      fireEvent.click(txButton);
+      // Backend has moved on to sending the airtime, so the status section shows.
+      act(() => {
+        queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'processing' });
+      });
+      await screen.findByText('Sending airtime to your phone…');
 
-      const toast = await screen.findByTestId('transaction-toast');
-      const backButton = screen.getByText('Back');
       const statusDisplay = document.body.querySelector(`.${styles.statusDisplay}`);
+      const backButton = screen.getByText('Back');
 
-      // Node.DOCUMENT_POSITION_FOLLOWING: statusDisplay comes before toast,
-      // and toast comes before the Back button, in document order.
-      expect(statusDisplay!.compareDocumentPosition(toast) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(toast.compareDocumentPosition(backButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // statusDisplay -> transaction button -> Back, in document order.
+      expect(statusDisplay!.compareDocumentPosition(txButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(txButton.compareDocumentPosition(backButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    describe('transaction button states', () => {
+      afterEach(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window.open as any)?.mockRestore?.();
+      });
+
+      it('shows "Processing Airtime..." while the transaction is pending', async () => {
+        await reachConfirmScreenAsSmartWallet();
+        mockTransactionButtonStatus = 'pending';
+        fireEvent.click(screen.getByText('Pay & Send Airtime'));
+        expect(await screen.findByText('Processing Airtime...', { selector: 'button' })).toBeInTheDocument();
+      });
+
+      it('shows "Try again" after an error and resubmits when clicked', async () => {
+        mockTransactionOutcome = { type: 'success', txHash: '0xretry' };
+        await reachConfirmScreenAsSmartWallet();
+        mockTransactionButtonStatus = 'error';
+        fireEvent.click(screen.getByText('Pay & Send Airtime'));
+        const retry = await screen.findByText('Try again');
+        mockTransactionButtonStatus = 'default';
+        fireEvent.click(retry);
+        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/airtime/send', expect.objectContaining({
+          body: expect.stringContaining('0xretry'),
+        })));
+      });
+
+      it('opens the Arc explorer (not basescan) from "View transaction" on Arc', async () => {
+        const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
+        mockUseAccount.mockReturnValue(connectedAccount({ chain: CHAINS.arc.chain }));
+        await reachConfirmScreenAsSmartWallet();
+        mockTransactionButtonStatus = 'success';
+        fireEvent.click(screen.getByText('Pay & Send Airtime'));
+        fireEvent.click(await screen.findByText('View transaction'));
+        expect(openSpy).toHaveBeenCalledWith(
+          'https://arc-scan.org/tx/0xarctxhash',
+          '_blank',
+          'noopener,noreferrer'
+        );
+      });
+
+      it('opens basescan from "View transaction" on Base', async () => {
+        const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
+        await reachConfirmScreenAsSmartWallet();
+        mockTransactionButtonStatus = 'success';
+        fireEvent.click(screen.getByText('Pay & Send Airtime'));
+        fireEvent.click(await screen.findByText('View transaction'));
+        expect(openSpy).toHaveBeenCalledWith(
+          `${CHAINS.base.blockExplorerUrl}/tx/0xarctxhash`,
+          '_blank',
+          'noopener,noreferrer'
+        );
+      });
     });
 
     it('shows the error message when the smart wallet transaction fails', async () => {

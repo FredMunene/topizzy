@@ -55,7 +55,7 @@ describe('CHAINS config', () => {
     expect(CHAINS.arc.supportsPermit).toBe(true);
     expect(CHAINS.arc.usdcDecimals).toBe(6);
     expect(CHAINS.arc.usdcAddress).toBe('0x3600000000000000000000000000000000000000');
-    expect(CHAINS.arc.blockExplorerUrl).toBe('https://explorer.arc.io');
+    expect(CHAINS.arc.blockExplorerUrl).toBe('https://arc-scan.org');
   });
 
   it('points base and arc at their respective testnet chains', () => {
