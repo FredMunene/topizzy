@@ -753,6 +753,39 @@ describe('Platform page', () => {
       expect(await screen.findByText(/no longer pending/)).toBeInTheDocument();
     });
 
+    it('treats an already-fulfilled order as success, not an error, when the wallet callback lands late', async () => {
+      // Regression: with delivery callbacks working, the order can be
+      // 'fulfilled' before the wallet's onSuccess fires; that used to show
+      // "This order is no longer pending" next to "Airtime delivered".
+      const { queryClient } = await reachConfirmScreenAsSmartWallet();
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      await screen.findByTestId('transaction-button');
+
+      act(() => {
+        queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'fulfilled' });
+      });
+      await screen.findByText('Airtime delivered successfully!');
+
+      await act(async () => {
+        await capturedTransactionProps.onSuccess({ transactionReceipts: [{ transactionHash: '0xlate' }] });
+      });
+      expect(screen.queryByText(/no longer pending/)).not.toBeInTheDocument();
+    });
+
+    it('clears an earlier error once the order is delivered', async () => {
+      mockTransactionOutcome = { type: 'error', message: 'Transient wallet error' };
+      const { queryClient } = await reachConfirmScreenAsSmartWallet();
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      fireEvent.click(await screen.findByTestId('transaction-button'));
+      expect(await screen.findByText('Transient wallet error')).toBeInTheDocument();
+
+      act(() => {
+        queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'fulfilled' });
+      });
+      await screen.findByText('Airtime delivered successfully!');
+      expect(screen.queryByText('Transient wallet error')).not.toBeInTheDocument();
+    });
+
     it('does not reject a successful payment when the order already flipped to "processing"', async () => {
       // Regression: 'processing' is the normal status right after a
       // successful payment (the backend can flip to it before onSuccess

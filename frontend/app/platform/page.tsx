@@ -675,12 +675,12 @@ export default function Home() {
     // wires this in as onSuccess only renders inside the `order &&` confirm
     // screen (see the `{!order ? (...) : (...)}` split below).
     if (!order) return;
-    // Only bail for genuinely terminal states — 'processing' is the normal
-    // status right after a successful payment (the backend can flip to it
-    // before this onSuccess callback even runs), so treating it the same as
-    // 'fulfilled'/'refunded' falsely rejected payments that had just
-    // succeeded, showing an error banner alongside the success toast.
-    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
+    // 'fulfilled' means the airtime is already delivered (the delivery callback
+    // can land before this wallet callback fires), which is success, not an
+    // error, so there is nothing left to do and nothing to warn about. Only
+    // 'refunded' is a real problem: a payment arriving for a refunded order.
+    if (orderStatus?.status === 'fulfilled') return;
+    if (orderStatus?.status === 'refunded') {
       setValidationError('This order is no longer pending. Please create a new order.');
       return;
     }
@@ -857,6 +857,11 @@ export default function Home() {
     if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
       setEoaTxnBusy(false);
       setSmartTxnBusy(false);
+    }
+    // A delivered order is the end state; don't leave an earlier error
+    // (e.g. a transient wallet/callback error) sitting next to the success banner.
+    if (orderStatus?.status === 'fulfilled') {
+      setValidationError('');
     }
     if (orderStatus?.status === 'processing' || orderStatus?.status === 'pending') {
       setSmartTxnBusy(false);
