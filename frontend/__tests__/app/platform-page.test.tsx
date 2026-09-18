@@ -188,11 +188,12 @@ function renderPlatform() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const result = render(
     <QueryClientProvider client={client}>
       <Platform />
     </QueryClientProvider>
   );
+  return { ...result, queryClient: client };
 }
 
 // `Continue`'s text lives in a <span> inside the real <button> — querying
@@ -502,7 +503,7 @@ describe('Platform page', () => {
   describe('Smart wallet payment flow', () => {
     async function reachConfirmScreenAsSmartWallet() {
       mockUseIsWalletACoinbaseSmartWallet.mockReturnValue(true);
-      renderPlatform();
+      const { queryClient } = renderPlatform();
       fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
       fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
       await clickContinueWhenEnabled();
@@ -515,6 +516,7 @@ describe('Platform page', () => {
         expect.stringContaining('/api/orders/order-ref-1')
       ));
       await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+      return { queryClient };
     }
 
     it('starts the smart wallet flow and pays successfully', async () => {
@@ -584,13 +586,26 @@ describe('Platform page', () => {
       })));
     });
 
-    it('rejects with "no longer pending" when the order status is not pending', async () => {
-      installFetchMock({ orderStatus: () => ({ status: 'fulfilled' }) });
-      mockTransactionOutcome = { type: 'success', txHash: '0xstale' };
-      await reachConfirmScreenAsSmartWallet();
-      // reachConfirmScreenAsSmartWallet already waited for the first poll, so
-      // the UI should already reflect the fulfilled state.
-      expect(await screen.findByText('Airtime delivered successfully!')).toBeInTheDocument();
+    it('rejects with "no longer pending" if the order status changed since the flow started', async () => {
+      const { queryClient } = await reachConfirmScreenAsSmartWallet();
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      await screen.findByTestId('transaction-button');
+
+      // Simulate the order having moved on (e.g. refunded via another tab)
+      // between the wallet submitting the transaction and its onSuccess
+      // callback actually firing — the callback can land after the button
+      // was disabled, so this isn't reachable by clicking a disabled button.
+      act(() => {
+        queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'refunded' });
+      });
+      // Wait for the re-render (which recreates handleSmartWalletSuccess with
+      // the updated orderStatus closure) to actually land.
+      await screen.findByText('Order Refunded');
+
+      await act(async () => {
+        await capturedTransactionProps.onSuccess({ transactionReceipts: [{ transactionHash: '0xstale' }] });
+      });
+      expect(await screen.findByText(/no longer pending/)).toBeInTheDocument();
     });
   });
 
@@ -774,6 +789,19 @@ describe('Platform page', () => {
         params: [{ chainId: `0x${CHAINS.base.chain.id.toString(16)}` }],
       })));
     });
+
+    it('offers a switch to Arc from the unsupported-chain warning banner', async () => {
+      mockUseAccount.mockReturnValue(connectedAccount({ chain: { id: 1, name: 'Ethereum' } }));
+      const request = jest.fn().mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).ethereum = { request };
+      renderPlatform();
+      expect(await screen.findByText(/Connected to Ethereum, which isn't supported/)).toBeInTheDocument();
+      fireEvent.click(screen.getByText('Switch to Arc'));
+      await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({
+        params: [{ chainId: `0x${CHAINS.arc.chain.id.toString(16)}` }],
+      })));
+    });
   });
 
   describe('Arc gas reserve', () => {
@@ -821,6 +849,69 @@ describe('Platform page', () => {
       fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
       await clickContinueWhenEnabled();
       expect(await screen.findByText('Sending airtime to your phone…')).toBeInTheDocument();
+    });
+  });
+
+  describe('remaining small branches', () => {
+    it('rejects an amount of 0 (validateAmount, not just handleContinue)', async () => {
+      renderPlatform();
+      const amountInput = screen.getByPlaceholderText('100');
+      fireEvent.change(amountInput, { target: { value: '0' } });
+      expect(await screen.findByText('Please enter a valid amount')).toBeInTheDocument();
+      // The Continue button should also be disabled by this — a non-empty
+      // but invalid amount is not the same as an empty one.
+      expect(getContinueButton()).toBeDisabled();
+    });
+
+    it('suppresses the error and logs when a smart-wallet airtime send fails', async () => {
+      mockUseIsWalletACoinbaseSmartWallet.mockReturnValue(true);
+      installFetchMock({ airtimeSend: () => ({ status: 500, body: { error: 'boom' } }) });
+      mockTransactionOutcome = { type: 'success', txHash: '0xsuppressed' };
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/orders/order-ref-1')
+      ));
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      const txButton = await screen.findByTestId('transaction-button');
+      fireEvent.click(txButton);
+      // suppressErrors means no error banner appears, just a best-effort log.
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/log', expect.objectContaining({
+        body: expect.stringContaining('Airtime send failed (suppressed)'),
+      })));
+      expect(screen.queryByText('boom')).not.toBeInTheDocument();
+    });
+
+    it('shows "Creating Order..." while the order-creation request is in flight', async () => {
+      let resolveOrder: (v: unknown) => void = () => {};
+      installFetchMock();
+      global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url === '/api/orders') {
+          return new Promise((resolve) => {
+            resolveOrder = () => resolve({
+              ok: true, status: 200,
+              json: async () => ({ orderRef: 'order-ref-1', amountKes: 100, amountUsdc: 1.05, airtimeUsdc: 1, serviceFeeUsdc: 0.05, currency: 'KES', chainId: 8453 }),
+            });
+          });
+        }
+        if (url.startsWith('/api/prices')) return { ok: true, json: async () => ({ success: true, price: 128, serviceFee: 0.05 }) };
+        if (url.startsWith('/api/geo')) return { ok: true, json: async () => ({ country: 'KE' }) };
+        return { ok: true, json: async () => ({}) };
+      }) as unknown as typeof fetch;
+
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      expect(await screen.findByText('Creating Order...')).toBeInTheDocument();
+      resolveOrder(undefined);
+      await screen.findByText('Confirm Payment');
     });
   });
 });
