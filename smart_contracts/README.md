@@ -165,7 +165,7 @@ After deployment:
    ```
    NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS_BASE=0x...
    NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS_ARC=0x...
-   TREASURY_PRIVATE_KEY=0x...  # Same as deployer (for refunds); one key can operate on both chains
+   OPERATOR_PRIVATE_KEY=0x...  # Signs refunds: Airtime.refund() is onlyOperator, and it needs gas on each chain (USDC on Arc, ETH on Base)
    ```
 
 3. **Verify on the block explorer**:

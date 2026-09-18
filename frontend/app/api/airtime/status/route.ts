@@ -7,7 +7,8 @@ import { getChainConfigById } from '@/lib/chains'
 
 const supabaseUrl = process.env.NEXT_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY as `0x${string}`
+// Airtime.refund() is onlyOperator, so refunds must be signed by the operator key.
+const OPERATOR_PRIVATE_KEY = process.env.OPERATOR_PRIVATE_KEY as `0x${string}`
 
 // Use service key to bypass RLS for server-side operations
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
@@ -45,13 +46,12 @@ async function executeRefund(order: OrderRow): Promise<string | undefined> {
   const chainConfig = getChainConfigById(order.chain_id)
   const AIRTIME_CONTRACT_ADDRESS = chainConfig.airtimeContractAddress
 
-  if (!TREASURY_PRIVATE_KEY || !AIRTIME_CONTRACT_ADDRESS) {
-    console.error('Treasury private key or chain contract address not configured', { chainId: chainConfig.chain.id })
-    await markOrderAsRefunded(String(order.id))
+  if (!OPERATOR_PRIVATE_KEY || !AIRTIME_CONTRACT_ADDRESS) {
+    console.error('Operator private key or chain contract address not configured', { chainId: chainConfig.chain.id })
     throw new Error('Manual refund required')
   }
 
-  const privateKey = TREASURY_PRIVATE_KEY.startsWith('0x') ? TREASURY_PRIVATE_KEY : `0x${TREASURY_PRIVATE_KEY}`
+  const privateKey = OPERATOR_PRIVATE_KEY.startsWith('0x') ? OPERATOR_PRIVATE_KEY : `0x${OPERATOR_PRIVATE_KEY}`
   const account = privateKeyToAccount(privateKey as `0x${string}`)
   const walletClient = createWalletClient({
     account,
@@ -103,6 +103,22 @@ async function markOrderAsRefunded(orderId: string, txHash?: string) {
   }
 }
 
+// Used when a refund could not be sent. Recording 'refunded' here would tell
+// the user (and support) money went back when it did not.
+async function markOrderRefundFailed(orderId: string) {
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({
+      status: 'refund_failed',
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', orderId)
+
+  if (updateError) {
+    console.error('Failed to update order refund_failed status:', updateError)
+  }
+}
+
 async function updateTransactionStatus(transactionId: string, status: string) {
   const { error: updateError } = await supabase
     .from('airtime_transactions')
@@ -147,7 +163,7 @@ export async function POST(request: NextRequest) {
         await markOrderAsRefunded(transaction.order_id, refundTxHash)
       } catch (refundError) {
         console.error('Refund execution failed:', refundError)
-        await markOrderAsRefunded(transaction.order_id)
+        await markOrderRefundFailed(transaction.order_id)
         if (refundError instanceof Error && refundError.message === 'Manual refund required') {
           return NextResponse.json({ error: 'Manual refund required' }, { status: 500 })
         }

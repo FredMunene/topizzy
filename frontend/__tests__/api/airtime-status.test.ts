@@ -92,7 +92,7 @@ describe('POST /api/airtime/status', () => {
       ...ORIGINAL_ENV,
       NEXT_SUPABASE_URL: 'https://example.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'service-key',
-      TREASURY_PRIVATE_KEY: '0x' + '1'.repeat(64),
+      OPERATOR_PRIVATE_KEY: '0x' + '1'.repeat(64),
     };
     mockTxSelect.mockReset();
     mockTxUpdate.mockReset().mockResolvedValue({ error: null });
@@ -199,9 +199,9 @@ describe('POST /api/airtime/status', () => {
       expect(mockWriteContract).toHaveBeenCalled();
     });
 
-    it('normalizes a treasury key without a 0x prefix', async () => {
+    it('normalizes an operator key without a 0x prefix', async () => {
       jest.resetModules();
-      process.env.TREASURY_PRIVATE_KEY = '2'.repeat(64); // no 0x prefix
+      process.env.OPERATOR_PRIVATE_KEY = '2'.repeat(64); // no 0x prefix
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { POST } = require('@/app/api/airtime/status/route');
       mockTxSelect.mockResolvedValueOnce({ data: baseTransaction(), error: null });
@@ -210,9 +210,9 @@ describe('POST /api/airtime/status', () => {
       expect(mockWriteContract).toHaveBeenCalled();
     });
 
-    it('returns 500 "Manual refund required" when the treasury private key is unset', async () => {
+    it('returns 500 "Manual refund required" when the operator private key is unset', async () => {
       jest.resetModules();
-      delete process.env.TREASURY_PRIVATE_KEY;
+      delete process.env.OPERATOR_PRIVATE_KEY;
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { POST } = require('@/app/api/airtime/status/route');
       mockTxSelect.mockResolvedValueOnce({ data: baseTransaction(), error: null });
@@ -220,10 +220,9 @@ describe('POST /api/airtime/status', () => {
       expect(res.status).toBe(500);
       const json = await res.json();
       expect(json.error).toBe('Manual refund required');
-      // Falls back to a status-only update since executeRefund never produced a tx hash.
-      expect(mockOrderUpdatePayload).toHaveBeenCalledWith(
-        expect.not.objectContaining({ refund_tx_hash: expect.anything() })
-      );
+      // No refund was sent, so the order must not be recorded as refunded.
+      expect(mockOrderUpdatePayload).toHaveBeenCalledWith(expect.objectContaining({ status: 'refund_failed' }));
+      expect(mockOrderUpdatePayload).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'refunded' }));
     });
 
     it('returns 500 "Manual refund required" when the chain has no configured contract address', async () => {
@@ -234,21 +233,29 @@ describe('POST /api/airtime/status', () => {
       expect(res.status).toBe(500);
     });
 
-    it('marks refunded (without failing the request) when the on-chain refund call throws a regular Error', async () => {
+    it('marks refund_failed (not refunded) when the on-chain refund call throws a regular Error', async () => {
       const POST = await loadPOST();
       mockTxSelect.mockResolvedValueOnce({ data: baseTransaction(), error: null });
       mockWriteContract.mockRejectedValueOnce(new Error('contract reverted'));
       const res = await POST(makeRequest({ requestId: 'ATQid_1', status: 'Failed' }));
       expect(res.status).toBe(200);
-      expect(mockOrderUpdatePayload).toHaveBeenCalledWith(
-        expect.not.objectContaining({ refund_tx_hash: expect.anything() })
-      );
+      expect(mockOrderUpdatePayload).toHaveBeenCalledWith(expect.objectContaining({ status: 'refund_failed' }));
+      expect(mockOrderUpdatePayload).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'refunded' }));
     });
 
-    it('marks refunded (without failing the request) when the on-chain refund call throws a non-Error value', async () => {
+    it('marks refund_failed (without failing the request) when the on-chain refund call throws a non-Error value', async () => {
       const POST = await loadPOST();
       mockTxSelect.mockResolvedValueOnce({ data: baseTransaction(), error: null });
       mockWriteContract.mockRejectedValueOnce('a raw string failure');
+      const res = await POST(makeRequest({ requestId: 'ATQid_1', status: 'Failed' }));
+      expect(res.status).toBe(200);
+    });
+
+    it('logs (but does not fail the request) when recording refund_failed errors', async () => {
+      const POST = await loadPOST();
+      mockTxSelect.mockResolvedValueOnce({ data: baseTransaction(), error: null });
+      mockWriteContract.mockRejectedValueOnce(new Error('out of gas'));
+      mockOrderUpdate.mockResolvedValueOnce({ error: { message: 'update failed' } });
       const res = await POST(makeRequest({ requestId: 'ATQid_1', status: 'Failed' }));
       expect(res.status).toBe(200);
     });
