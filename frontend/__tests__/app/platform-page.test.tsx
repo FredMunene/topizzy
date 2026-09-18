@@ -354,6 +354,25 @@ describe('Platform page', () => {
       const amountInput = screen.getByPlaceholderText('100') as HTMLInputElement;
       await waitFor(() => expect(amountInput.value).toBe(''));
     });
+
+    it('does not flag "Insufficient balance" right after clicking "Use max amount" (float round-trip)', async () => {
+      // Regression: 0.95 USDC balance / 0.01 gas reserve / 0.05 service fee /
+      // 128.19 KES-per-USDC reproduces a case where floor(maxSpendableUsdc)
+      // converted to KES and back to USDC via toFixed(2) lands a cent above
+      // spendableBalance in plain binary floating point (0.9400000000000001
+      // > 0.94), tripping the balance check for the exact max the button
+      // itself just offered.
+      installFetchMock({ prices: () => ({ success: true, price: 128.19, serviceFee: 0.05 }) });
+      mockUseAccount.mockReturnValue(connectedAccount({ chain: CHAINS.arc.chain }));
+      mockUseBalance.mockReturnValue({ data: { value: 950_000n } }); // 0.95 USDC
+      mockEstimateGasReserveUsdc.mockResolvedValue(0.01);
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Use max amount ($0.89)')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Use max amount ($0.89)'));
+      const amountInput = screen.getByPlaceholderText('100') as HTMLInputElement;
+      await waitFor(() => expect(amountInput.value).toBe('114.08'));
+      expect(screen.queryByText('Insufficient balance')).not.toBeInTheDocument();
+    });
   });
 
   describe('order creation', () => {

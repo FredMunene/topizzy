@@ -399,7 +399,15 @@ export default function Home() {
       const balanceUsdc = parseFloat(formatUnits(usdcBalance.value, 6));
       const spendableBalance = balanceUsdc - gasReserveUsdc;
       const totalCostUsdc = parseFloat(amountUsdc) + serviceFeeUsdc;
-      if (totalCostUsdc > spendableBalance) {
+      // "Use max amount" derives its KES figure from spendableBalance via a
+      // floor (see maxSpendableKes below), then this effect converts that
+      // KES figure back to USDC via toFixed(2) rounding — a different
+      // rounding direction that, combined with plain binary floating-point
+      // error, can land a cent above spendableBalance for the exact max
+      // amount. A half-cent tolerance absorbs that round-trip noise without
+      // meaningfully loosening the real balance check.
+      const FLOAT_TOLERANCE_USDC = 0.005;
+      if (totalCostUsdc > spendableBalance + FLOAT_TOLERANCE_USDC) {
         setValidationError('Insufficient balance');
       }
     }
@@ -791,8 +799,10 @@ export default function Home() {
   const spendableBalanceUsdc = usdcBalance
     ? parseFloat(formatUnits(usdcBalance.value, 6)) - gasReserveUsdc
     : 0;
+  // Mirrors validateAmount's FLOAT_TOLERANCE_USDC — same KES/USDC round-trip,
+  // same boundary-noise risk, so it needs the same tolerance to stay in sync.
   const hasInsufficientBalance = Boolean(
-    isConnected && amountKes && (parseFloat(amountUsdc) + serviceFeeUsdc) > spendableBalanceUsdc
+    isConnected && amountKes && (parseFloat(amountUsdc) + serviceFeeUsdc) > spendableBalanceUsdc + 0.005
   );
 
   // Largest airtime amount payable with what's left after reserving gas and
