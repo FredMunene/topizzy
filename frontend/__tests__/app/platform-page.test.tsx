@@ -742,13 +742,14 @@ describe('Platform page', () => {
       act(() => {
         queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'refunded' });
       });
-      await screen.findByText('Order Refunded');
+      await screen.findByText(/couldn't deliver this airtime/);
+      // The sent transaction's "View transaction" button goes away with it.
+      expect(screen.queryByTestId('transaction-button')).not.toBeInTheDocument();
 
       await act(async () => {
         await capturedTransactionProps.onSuccess({ transactionReceipts: [{ transactionHash: '0xstale' }] });
       });
       expect(screen.queryByText(/no longer pending/)).not.toBeInTheDocument();
-      expect(screen.getByText(/couldn't deliver this airtime/)).toBeInTheDocument();
     });
 
     it('treats an already-fulfilled order as success, not an error, when the wallet callback lands late', async () => {
@@ -1056,15 +1057,38 @@ describe('Platform page', () => {
       expect(await screen.findByText('Airtime delivered successfully!')).toBeInTheDocument();
     });
 
-    it('shows a refunded message with a link to the refund transaction', async () => {
+    it('shows the refund message and its link together in one section', async () => {
       installFetchMock({ orderStatus: () => ({ status: 'refunded', refund_tx_hash: '0xrefundtx', chain_id: 8453 }) });
       renderPlatform();
       fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
       fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
       await clickContinueWhenEnabled();
-      expect(await screen.findByText(/couldn't deliver this airtime/)).toBeInTheDocument();
       const link = await screen.findByText('View refund transaction');
       expect(link.closest('a')).toHaveAttribute('href', expect.stringContaining('0xrefundtx'));
+      // The message and the link live in the same box, not two separate ones.
+      const box = link.closest('a')!.parentElement!;
+      expect(box).toHaveTextContent(/couldn't deliver this airtime.*View refund transaction/);
+    });
+
+    it('shows the refund message without a link when there is no refund tx hash yet', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'refunded' }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      expect(await screen.findByText(/couldn't deliver this airtime/)).toBeInTheDocument();
+      expect(screen.queryByText('View refund transaction')).not.toBeInTheDocument();
+    });
+
+    it('hides the pay / "View transaction" button once the order is refunded (EOA)', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'refunded', refund_tx_hash: '0xrefundtx', chain_id: 8453 }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText(/couldn't deliver this airtime/);
+      expect(screen.queryByText('Pay & Send Airtime')).not.toBeInTheDocument();
+      expect(screen.getByText('Back')).toBeInTheDocument();
     });
 
     it('shows a processing message while the order is being fulfilled', async () => {

@@ -823,12 +823,13 @@ export default function Home() {
     continueButtonText = 'Continue';
   }
 
+  // A refunded order has nothing left to pay for or view, so the pay /
+  // "View transaction" button is not rendered at all.
+  const isRefunded = orderStatus?.status === 'refunded';
   const isOrderProcessing = orderStatus?.status === 'processing' || (orderStatus?.status === 'pending' && Boolean(orderStatus?.tx_hash));
 
   let payButtonText: string;
-  if (orderStatus?.status === 'refunded') {
-    payButtonText = 'Order Refunded';
-  } else if (orderStatus?.status === 'fulfilled') {
+  if (orderStatus?.status === 'fulfilled') {
     payButtonText = 'Order Completed';
   } else if (isOrderProcessing) {
     payButtonText = 'Processing Airtime...';
@@ -841,7 +842,6 @@ export default function Home() {
   }
   const smartWalletDisabled =
     !isConnected ||
-    orderStatus?.status === 'refunded' ||
     orderStatus?.status === 'fulfilled' ||
     isOrderProcessing ||
     smartTxnBusy ||
@@ -894,9 +894,10 @@ export default function Home() {
 
           {orderStatus.status === 'refunded' && (
             <div className={styles.errorMessage}>
-              <div>We couldn&apos;t deliver this airtime, so the airtime cost has been refunded to your wallet.</div>
+              We couldn&apos;t deliver this airtime, so the airtime cost has been refunded to your wallet.
               {orderStatus.refund_tx_hash && (
-                <div style={{marginTop: '8px', fontSize: '12px'}}>
+                <>
+                  {' '}
                   <a
                     href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
                     target="_blank"
@@ -905,7 +906,7 @@ export default function Home() {
                   >
                     View refund transaction
                   </a>
-                </div>
+                </>
               )}
             </div>
           )}
@@ -1221,6 +1222,7 @@ export default function Home() {
                       state to basescan.org for any chain it doesn't know
                       (Arc included), so the success state is rendered here
                       against the active chain's own explorer. */}
+                  {!isRefunded && (
                   <TransactionButton
                     className={styles.continueButton}
                     disabled={smartWalletDisabled}
@@ -1252,6 +1254,7 @@ export default function Home() {
                       );
                     }}
                   />
+                  )}
 
                   {/* Must stay inside <Transaction>: it reads the
                       transaction result from that component's context. */}
@@ -1259,13 +1262,13 @@ export default function Home() {
                 </Transaction>
               ) : (
                 <>
+                  {!isRefunded && (
                   <button
                     onClick={handlePay}
                     disabled={
                       payAndSendMutation.isPending ||
                       eoaTxnBusy ||
                       !isConnected ||
-                      orderStatus?.status === 'refunded' ||
                       orderStatus?.status === 'fulfilled' ||
                       isOrderProcessing ||
                       currentAirtimeSendState === 'pending' ||
@@ -1275,6 +1278,7 @@ export default function Home() {
                   >
                     {payButtonText}
                   </button>
+                  )}
 
                   {orderStatusSection}
                 </>
