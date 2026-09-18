@@ -1212,20 +1212,47 @@ export default function Home() {
                   onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
                   onSuccess={handleSmartWalletSuccess}
                 >
+                  {orderStatusSection}
+
+                  {/* Below the order-status section and above "Back". The
+                      default OnchainKit button links its "View transaction"
+                      state to basescan.org for any chain it doesn't know
+                      (Arc included), so the success state is rendered here
+                      against the active chain's own explorer. */}
                   <TransactionButton
                     className={styles.continueButton}
                     disabled={smartWalletDisabled}
-                    text={payButtonText}
-                    pendingOverride={{ text: 'Processing Airtime...' }}
+                    render={({ status, context, onSubmit, isDisabled }) => {
+                      let label = payButtonText;
+                      if (status === 'success') label = 'View transaction';
+                      else if (status === 'error') label = 'Try again';
+                      else if (status === 'pending') label = 'Processing Airtime...';
+                      return (
+                        <button
+                          type="button"
+                          data-testid="transaction-button"
+                          className={styles.continueButton}
+                          disabled={isDisabled}
+                          onClick={() => {
+                            if (status === 'success') {
+                              window.open(
+                                `${activeChainConfig.blockExplorerUrl}/tx/${context.transactionHash}`,
+                                '_blank',
+                                'noopener,noreferrer'
+                              );
+                              return;
+                            }
+                            onSubmit();
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    }}
                   />
 
-                  {orderStatusSection}
-
-                  {/* Positioned last — right above "Back" — per product
-                      request, rather than immediately next to the pay
-                      button where OnchainKit places it by default. Must
-                      stay inside <Transaction>: it reads the transaction
-                      result from that component's own context. */}
+                  {/* Must stay inside <Transaction>: it reads the
+                      transaction result from that component's context. */}
                   <TransactionToast />
                 </Transaction>
               ) : (

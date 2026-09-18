@@ -138,7 +138,7 @@ forge script script/Deploy.s.sol \
   -vvvv
 ```
 
-Arc's block explorer (https://explorer.arc.io) is not Etherscan-based, so
+Arc's block explorer (https://arc-scan.org) is not Etherscan-based, so
 `--verify --etherscan-api-key` doesn't apply here — verify manually through
 the explorer once it's live if source verification is supported.
 
@@ -171,7 +171,7 @@ After deployment:
 3. **Verify on the block explorer**:
    - Base Sepolia: https://sepolia.basescan.org/address/YOUR_CONTRACT_ADDRESS
    - Base Mainnet: https://basescan.org/address/YOUR_CONTRACT_ADDRESS
-   - Arc: https://explorer.arc.io/address/YOUR_CONTRACT_ADDRESS
+   - Arc: https://arc-scan.org/address/YOUR_CONTRACT_ADDRESS
 
 4. **Test the deployment**:
    ```bash

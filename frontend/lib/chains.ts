@@ -17,7 +17,7 @@ export const arc = defineChain({
     default: { http: [process.env.NEXT_PUBLIC_ARC_RPC_URL || 'https://rpc.mainnet.arc.io'] },
   },
   blockExplorers: {
-    default: { name: 'Arc Explorer', url: 'https://explorer.arc.io' },
+    default: { name: 'Arc Explorer', url: 'https://arc-scan.org' },
   },
 });
 
@@ -85,7 +85,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     usdcAddress: ARC_USDC_ADDRESS,
     usdcDecimals: 6,
     airtimeContractAddress: process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS_ARC as `0x${string}` | undefined,
-    blockExplorerUrl: 'https://explorer.arc.io',
+    blockExplorerUrl: 'https://arc-scan.org',
     // Confirmed: Arc's USDC implements EIP-2612 permit() (domain name "USDC",
     // version "2"), same as Base. Circle's own arc-node repo demonstrates it:
     // https://github.com/circlefin/arc-node/issues/164
