@@ -61,6 +61,7 @@ export default function Home() {
   const [eoaTxnBusy, setEoaTxnBusy] = useState(false);
   const [smartTxnBusy, setSmartTxnBusy] = useState(false);
   const [shouldPoll, setShouldPoll] = useState(true);
+  const [headerHidden, setHeaderHidden] = useState(false);
   const { address: wagmiAddress, chain } = useAccount();
   const { data: wagmiWalletClient } = useWalletClient();
   const activeChainConfig = getChainConfigById(chain?.id);
@@ -674,7 +675,12 @@ export default function Home() {
     // wires this in as onSuccess only renders inside the `order &&` confirm
     // screen (see the `{!order ? (...) : (...)}` split below).
     if (!order) return;
-    if (orderStatus?.status && orderStatus.status !== 'pending') {
+    // Only bail for genuinely terminal states — 'processing' is the normal
+    // status right after a successful payment (the backend can flip to it
+    // before this onSuccess callback even runs), so treating it the same as
+    // 'fulfilled'/'refunded' falsely rejected payments that had just
+    // succeeded, showing an error banner alongside the success toast.
+    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
       setValidationError('This order is no longer pending. Please create a new order.');
       return;
     }
@@ -861,10 +867,32 @@ export default function Home() {
     setSmartTxnBusy(false);
   }, []);
 
+  // Hide the fixed wallet-address pill while scrolling down (it has nothing
+  // to stay pinned above once the card has scrolled past it) and bring it
+  // back on scroll up or near the top, so it doesn't sit fixed over content
+  // for the entire scroll.
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    const SCROLL_HIDE_THRESHOLD = 24;
+    const onScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY <= SCROLL_HIDE_THRESHOLD) {
+        setHeaderHidden(false);
+      } else if (currentScrollY > lastScrollY) {
+        setHeaderHidden(true);
+      } else if (currentScrollY < lastScrollY) {
+        setHeaderHidden(false);
+      }
+      lastScrollY = currentScrollY;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   return (
     <>
     <div className={styles.container}>
-      <header className={styles.headerWrapper}>
+      <header className={`${styles.headerWrapper} ${headerHidden ? styles.headerHidden : ''}`}>
         <Wallet />
       </header>
 

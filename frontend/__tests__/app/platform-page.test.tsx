@@ -673,6 +673,25 @@ describe('Platform page', () => {
       });
       expect(await screen.findByText(/no longer pending/)).toBeInTheDocument();
     });
+
+    it('does not reject a successful payment when the order already flipped to "processing"', async () => {
+      // Regression: 'processing' is the normal status right after a
+      // successful payment (the backend can flip to it before onSuccess
+      // even fires) — it must not be treated the same as a terminal state.
+      const { queryClient } = await reachConfirmScreenAsSmartWallet();
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      await screen.findByTestId('transaction-button');
+
+      act(() => {
+        queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'processing' });
+      });
+      await screen.findByText('Sending airtime to your phone…');
+
+      await act(async () => {
+        await capturedTransactionProps.onSuccess({ transactionReceipts: [{ transactionHash: '0xstale' }] });
+      });
+      expect(screen.queryByText(/no longer pending/)).not.toBeInTheDocument();
+    });
   });
 
   describe('sendAirtime friendly error messages (EOA flow)', () => {
@@ -953,6 +972,63 @@ describe('Platform page', () => {
       fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
       await clickContinueWhenEnabled();
       expect(await screen.findByText('Sending airtime to your phone…')).toBeInTheDocument();
+    });
+  });
+
+  describe('wallet pill scroll-hide', () => {
+    function setScrollY(value: number) {
+      Object.defineProperty(window, 'scrollY', { value, writable: true, configurable: true });
+    }
+
+    afterEach(() => setScrollY(0));
+
+    it('hides the wallet pill when scrolling down past the threshold', () => {
+      const { container } = renderPlatform();
+      const header = container.querySelector('header')!;
+      expect(header.className).not.toContain('headerHidden');
+
+      setScrollY(200);
+      fireEvent.scroll(window);
+      expect(header.className).toContain('headerHidden');
+    });
+
+    it('shows the wallet pill again when scrolling back up', () => {
+      const { container } = renderPlatform();
+      const header = container.querySelector('header')!;
+
+      setScrollY(200);
+      fireEvent.scroll(window);
+      expect(header.className).toContain('headerHidden');
+
+      setScrollY(100);
+      fireEvent.scroll(window);
+      expect(header.className).not.toContain('headerHidden');
+    });
+
+    it('leaves the wallet pill state unchanged on a no-op scroll event (same scrollY)', () => {
+      const { container } = renderPlatform();
+      const header = container.querySelector('header')!;
+
+      setScrollY(200);
+      fireEvent.scroll(window);
+      expect(header.className).toContain('headerHidden');
+
+      // Same scrollY as before — none of the direction branches match.
+      fireEvent.scroll(window);
+      expect(header.className).toContain('headerHidden');
+    });
+
+    it('keeps the wallet pill visible near the top regardless of direction', () => {
+      const { container } = renderPlatform();
+      const header = container.querySelector('header')!;
+
+      setScrollY(200);
+      fireEvent.scroll(window);
+      expect(header.className).toContain('headerHidden');
+
+      setScrollY(10);
+      fireEvent.scroll(window);
+      expect(header.className).not.toContain('headerHidden');
     });
   });
 
