@@ -45,7 +45,10 @@
   align-items: flex-start;
   justify-content: center;
   min-height: 100vh;
-  padding-top: 2rem;
+  /* Clears the fixed wallet-address pill in .headerWrapper (top: 1rem,
+     ~2.3rem tall), which otherwise overlaps the card's top edge since the
+     pill is position: fixed and doesn't participate in this flow. */
+  padding-top: 4.5rem;
 }
 
 .content > .card {

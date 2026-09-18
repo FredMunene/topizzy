@@ -59,7 +59,6 @@ export default function Home() {
   const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number; airtimeUsdc?: number; serviceFeeUsdc?: number } | null>(null);
   const [airtimeSendState, setAirtimeSendState] = useState<Record<string, 'pending' | 'done' | 'error'>>({});
   const [eoaTxnBusy, setEoaTxnBusy] = useState(false);
-  const [smartFlowStarted, setSmartFlowStarted] = useState(false);
   const [smartTxnBusy, setSmartTxnBusy] = useState(false);
   const [shouldPoll, setShouldPoll] = useState(true);
   const { address: wagmiAddress, chain } = useAccount();
@@ -689,7 +688,6 @@ export default function Home() {
     if (priorState === 'pending' || priorState === 'done') {
       return;
     }
-    setSmartFlowStarted(false);
     setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'pending' }));
     const txHash = transactionReceipts[0]?.transactionHash;
     if (!txHash) {
@@ -712,7 +710,6 @@ export default function Home() {
   useEffect(() => {
     if (order) {
       setShouldPoll(true);
-      setSmartFlowStarted(false);
       setSmartTxnBusy(false);
     }
   }, [order]);
@@ -853,17 +850,14 @@ export default function Home() {
   useEffect(() => {
     if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
       setEoaTxnBusy(false);
-      setSmartFlowStarted(false);
       setSmartTxnBusy(false);
     }
     if (orderStatus?.status === 'processing' || orderStatus?.status === 'pending') {
-      setSmartFlowStarted(false);
       setSmartTxnBusy(false);
     }
   }, [orderStatus?.status]);
 
   useEffect(() => {
-    setSmartFlowStarted(false);
     setSmartTxnBusy(false);
   }, []);
 
@@ -1115,43 +1109,29 @@ export default function Home() {
               )}
 
               {isSmartWallet ? (
-                smartFlowStarted ? (
-                  <Transaction
-                    chainId={activeChainConfig.chain.id}
-                    calls={smartWalletCalls}
-                    isSponsored={activeChainConfig.key === 'base'}
-                    onStatus={(status) => {
-                      const busyStates = ['buildingTransaction', 'transactionPending', 'transactionLegacyExecuted'];
-                      if (busyStates.includes(status.statusName)) {
-                        setSmartTxnBusy(true);
-                      } else if (status.statusName === 'success' || status.statusName === 'error' || status.statusName === 'reset') {
-                        setSmartTxnBusy(false);
-                        setSmartFlowStarted(false);
-                      }
-                    }}
-                    onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
-                    onSuccess={handleSmartWalletSuccess}
-                  >
-                    <TransactionButton
-                      className={styles.continueButton}
-                      disabled={smartWalletDisabled}
-                      text={payButtonText}
-                      pendingOverride={{ text: 'Processing Airtime...' }}
-                    />
-                    <TransactionToast />
-                  </Transaction>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setValidationError('');
-                      setSmartFlowStarted(true);
-                    }}
-                    disabled={smartWalletDisabled}
+                <Transaction
+                  chainId={activeChainConfig.chain.id}
+                  calls={smartWalletCalls}
+                  isSponsored={activeChainConfig.key === 'base'}
+                  onStatus={(status) => {
+                    const busyStates = ['buildingTransaction', 'transactionPending', 'transactionLegacyExecuted'];
+                    if (busyStates.includes(status.statusName)) {
+                      setSmartTxnBusy(true);
+                    } else if (status.statusName === 'success' || status.statusName === 'error' || status.statusName === 'reset') {
+                      setSmartTxnBusy(false);
+                    }
+                  }}
+                  onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
+                  onSuccess={handleSmartWalletSuccess}
+                >
+                  <TransactionButton
                     className={styles.continueButton}
-                  >
-                    {payButtonText}
-                  </button>
-                )
+                    disabled={smartWalletDisabled}
+                    text={payButtonText}
+                    pendingOverride={{ text: 'Processing Airtime...' }}
+                  />
+                  <TransactionToast />
+                </Transaction>
               ) : (
                 <button
                   onClick={handlePay}
