@@ -9,7 +9,7 @@ import "./globals.css";
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: {
-      default: "Topizzy: Buy Airtime with USDC on Base",
+      default: "Topizzy: Buy Airtime using USDC Onchain",
       template: "%s | Topizzy",
     },
     description: minikitConfig.miniapp.description,

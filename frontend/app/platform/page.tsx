@@ -675,15 +675,11 @@ export default function Home() {
     // wires this in as onSuccess only renders inside the `order &&` confirm
     // screen (see the `{!order ? (...) : (...)}` split below).
     if (!order) return;
-    // 'fulfilled' means the airtime is already delivered (the delivery callback
-    // can land before this wallet callback fires), which is success, not an
-    // error, so there is nothing left to do and nothing to warn about. Only
-    // 'refunded' is a real problem: a payment arriving for a refunded order.
-    if (orderStatus?.status === 'fulfilled') return;
-    if (orderStatus?.status === 'refunded') {
-      setValidationError('This order is no longer pending. Please create a new order.');
-      return;
-    }
+    // Both terminal states can land before this wallet callback fires (the
+    // delivery callback and refund are fast): 'fulfilled' means delivered and
+    // 'refunded' means already returned. Each has its own banner below, so
+    // there is nothing left to do here and nothing to warn about.
+    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') return;
     const priorState = airtimeSendState[order.orderRef];
     // istanbul ignore next -- guards a real double-invocation race (e.g. a
     // fast double-click) but reproducing it deterministically means firing
@@ -858,9 +854,9 @@ export default function Home() {
       setEoaTxnBusy(false);
       setSmartTxnBusy(false);
     }
-    // A delivered order is the end state; don't leave an earlier error
-    // (e.g. a transient wallet/callback error) sitting next to the success banner.
-    if (orderStatus?.status === 'fulfilled') {
+    // Delivered or refunded is the end state; don't leave an earlier error
+    // (e.g. a transient wallet/callback error) sitting next to its banner.
+    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
       setValidationError('');
     }
     if (orderStatus?.status === 'processing' || orderStatus?.status === 'pending') {
@@ -898,6 +894,7 @@ export default function Home() {
 
           {orderStatus.status === 'refunded' && (
             <div className={styles.errorMessage}>
+              <div>We couldn&apos;t deliver this airtime, so the airtime cost has been refunded to your wallet.</div>
               {orderStatus.refund_tx_hash && (
                 <div style={{marginTop: '8px', fontSize: '12px'}}>
                   <a

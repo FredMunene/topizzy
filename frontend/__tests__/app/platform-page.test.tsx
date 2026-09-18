@@ -731,26 +731,24 @@ describe('Platform page', () => {
       })));
     });
 
-    it('rejects with "no longer pending" if the order status changed since the flow started', async () => {
+    it('shows the refund banner, not a "no longer pending" error, when the order was already refunded', async () => {
+      // Regression: the refund is fast, so the order can already be
+      // 'refunded' when the wallet's onSuccess fires. That used to stack a
+      // red "no longer pending" error on top of the refund banner.
       const { queryClient } = await reachConfirmScreenAsSmartWallet();
       fireEvent.click(screen.getByText('Pay & Send Airtime'));
       await screen.findByTestId('transaction-button');
 
-      // Simulate the order having moved on (e.g. refunded via another tab)
-      // between the wallet submitting the transaction and its onSuccess
-      // callback actually firing — the callback can land after the button
-      // was disabled, so this isn't reachable by clicking a disabled button.
       act(() => {
         queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'refunded' });
       });
-      // Wait for the re-render (which recreates handleSmartWalletSuccess with
-      // the updated orderStatus closure) to actually land.
       await screen.findByText('Order Refunded');
 
       await act(async () => {
         await capturedTransactionProps.onSuccess({ transactionReceipts: [{ transactionHash: '0xstale' }] });
       });
-      expect(await screen.findByText(/no longer pending/)).toBeInTheDocument();
+      expect(screen.queryByText(/no longer pending/)).not.toBeInTheDocument();
+      expect(screen.getByText(/couldn't deliver this airtime/)).toBeInTheDocument();
     });
 
     it('treats an already-fulfilled order as success, not an error, when the wallet callback lands late', async () => {
@@ -1064,6 +1062,7 @@ describe('Platform page', () => {
       fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
       fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
       await clickContinueWhenEnabled();
+      expect(await screen.findByText(/couldn't deliver this airtime/)).toBeInTheDocument();
       const link = await screen.findByText('View refund transaction');
       expect(link.closest('a')).toHaveAttribute('href', expect.stringContaining('0xrefundtx'));
     });
