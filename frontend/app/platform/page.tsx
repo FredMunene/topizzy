@@ -675,15 +675,11 @@ export default function Home() {
     // wires this in as onSuccess only renders inside the `order &&` confirm
     // screen (see the `{!order ? (...) : (...)}` split below).
     if (!order) return;
-    // Only bail for genuinely terminal states — 'processing' is the normal
-    // status right after a successful payment (the backend can flip to it
-    // before this onSuccess callback even runs), so treating it the same as
-    // 'fulfilled'/'refunded' falsely rejected payments that had just
-    // succeeded, showing an error banner alongside the success toast.
-    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
-      setValidationError('This order is no longer pending. Please create a new order.');
-      return;
-    }
+    // Both terminal states can land before this wallet callback fires (the
+    // delivery callback and refund are fast): 'fulfilled' means delivered and
+    // 'refunded' means already returned. Each has its own banner below, so
+    // there is nothing left to do here and nothing to warn about.
+    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') return;
     const priorState = airtimeSendState[order.orderRef];
     // istanbul ignore next -- guards a real double-invocation race (e.g. a
     // fast double-click) but reproducing it deterministically means firing
@@ -827,12 +823,13 @@ export default function Home() {
     continueButtonText = 'Continue';
   }
 
+  // A refunded order has nothing left to pay for or view, so the pay /
+  // "View transaction" button is not rendered at all.
+  const isRefunded = orderStatus?.status === 'refunded';
   const isOrderProcessing = orderStatus?.status === 'processing' || (orderStatus?.status === 'pending' && Boolean(orderStatus?.tx_hash));
 
   let payButtonText: string;
-  if (orderStatus?.status === 'refunded') {
-    payButtonText = 'Order Refunded';
-  } else if (orderStatus?.status === 'fulfilled') {
+  if (orderStatus?.status === 'fulfilled') {
     payButtonText = 'Order Completed';
   } else if (isOrderProcessing) {
     payButtonText = 'Processing Airtime...';
@@ -845,7 +842,6 @@ export default function Home() {
   }
   const smartWalletDisabled =
     !isConnected ||
-    orderStatus?.status === 'refunded' ||
     orderStatus?.status === 'fulfilled' ||
     isOrderProcessing ||
     smartTxnBusy ||
@@ -857,6 +853,11 @@ export default function Home() {
     if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
       setEoaTxnBusy(false);
       setSmartTxnBusy(false);
+    }
+    // Delivered or refunded is the end state; don't leave an earlier error
+    // (e.g. a transient wallet/callback error) sitting next to its banner.
+    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
+      setValidationError('');
     }
     if (orderStatus?.status === 'processing' || orderStatus?.status === 'pending') {
       setSmartTxnBusy(false);
@@ -893,18 +894,24 @@ export default function Home() {
 
           {orderStatus.status === 'refunded' && (
             <div className={styles.errorMessage}>
-              {orderStatus.refund_tx_hash && (
-                <div style={{marginTop: '8px', fontSize: '12px'}}>
-                  <a
-                    href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{color: '#0ea5e9', textDecoration: 'underline'}}
-                  >
-                    View refund transaction
-                  </a>
-                </div>
-              )}
+              {/* One element so the text and link flow as a single paragraph
+                  (.errorMessage is display:flex and would split them). */}
+              <span>
+                We couldn&apos;t deliver this airtime, so the airtime cost has been refunded to your wallet.
+                {orderStatus.refund_tx_hash && (
+                  <>
+                    {' '}
+                    <a
+                      href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{color: '#0ea5e9', textDecoration: 'underline'}}
+                    >
+                      View refund transaction
+                    </a>
+                  </>
+                )}
+              </span>
             </div>
           )}
         </div>
@@ -1219,6 +1226,7 @@ export default function Home() {
                       state to basescan.org for any chain it doesn't know
                       (Arc included), so the success state is rendered here
                       against the active chain's own explorer. */}
+                  {!isRefunded && (
                   <TransactionButton
                     className={styles.continueButton}
                     disabled={smartWalletDisabled}
@@ -1250,6 +1258,7 @@ export default function Home() {
                       );
                     }}
                   />
+                  )}
 
                   {/* Must stay inside <Transaction>: it reads the
                       transaction result from that component's context. */}
@@ -1257,13 +1266,13 @@ export default function Home() {
                 </Transaction>
               ) : (
                 <>
+                  {!isRefunded && (
                   <button
                     onClick={handlePay}
                     disabled={
                       payAndSendMutation.isPending ||
                       eoaTxnBusy ||
                       !isConnected ||
-                      orderStatus?.status === 'refunded' ||
                       orderStatus?.status === 'fulfilled' ||
                       isOrderProcessing ||
                       currentAirtimeSendState === 'pending' ||
@@ -1273,6 +1282,7 @@ export default function Home() {
                   >
                     {payButtonText}
                   </button>
+                  )}
 
                   {orderStatusSection}
                 </>

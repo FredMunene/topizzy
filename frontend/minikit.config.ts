@@ -33,7 +33,7 @@ export const minikitConfig = {
     tags: ["example"],
     heroImageUrl: `${ROOT_URL}/hero.png`,
     tagline: "Airtime top-ups with USDC on Base",
-    ogTitle: "Topizzy — Buy Airtime with USDC on Base",
+    ogTitle: "Topizzy: Buy Airtime using USDC Onchain",
     ogDescription: "Send airtime to Kenya, Uganda, Tanzania, Rwanda, and South Africa using USDC on Base.",
     ogImageUrl: `${ROOT_URL}/hero.png`,
   },

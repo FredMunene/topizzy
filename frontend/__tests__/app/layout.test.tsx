@@ -20,7 +20,7 @@ describe('generateMetadata', () => {
   it('builds metadata from minikitConfig', async () => {
     const metadata = await generateMetadata();
     expect(metadata.title).toEqual({
-      default: 'Topizzy — Buy Airtime with USDC on Base',
+      default: 'Topizzy: Buy Airtime using USDC Onchain',
       template: '%s | Topizzy',
     });
     expect(metadata.description).toBe(minikitConfig.miniapp.description);

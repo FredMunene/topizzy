@@ -731,26 +731,58 @@ describe('Platform page', () => {
       })));
     });
 
-    it('rejects with "no longer pending" if the order status changed since the flow started', async () => {
+    it('shows the refund banner, not a "no longer pending" error, when the order was already refunded', async () => {
+      // Regression: the refund is fast, so the order can already be
+      // 'refunded' when the wallet's onSuccess fires. That used to stack a
+      // red "no longer pending" error on top of the refund banner.
       const { queryClient } = await reachConfirmScreenAsSmartWallet();
       fireEvent.click(screen.getByText('Pay & Send Airtime'));
       await screen.findByTestId('transaction-button');
 
-      // Simulate the order having moved on (e.g. refunded via another tab)
-      // between the wallet submitting the transaction and its onSuccess
-      // callback actually firing — the callback can land after the button
-      // was disabled, so this isn't reachable by clicking a disabled button.
       act(() => {
         queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'refunded' });
       });
-      // Wait for the re-render (which recreates handleSmartWalletSuccess with
-      // the updated orderStatus closure) to actually land.
-      await screen.findByText('Order Refunded');
+      await screen.findByText(/couldn't deliver this airtime/);
+      // The sent transaction's "View transaction" button goes away with it.
+      expect(screen.queryByTestId('transaction-button')).not.toBeInTheDocument();
 
       await act(async () => {
         await capturedTransactionProps.onSuccess({ transactionReceipts: [{ transactionHash: '0xstale' }] });
       });
-      expect(await screen.findByText(/no longer pending/)).toBeInTheDocument();
+      expect(screen.queryByText(/no longer pending/)).not.toBeInTheDocument();
+    });
+
+    it('treats an already-fulfilled order as success, not an error, when the wallet callback lands late', async () => {
+      // Regression: with delivery callbacks working, the order can be
+      // 'fulfilled' before the wallet's onSuccess fires; that used to show
+      // "This order is no longer pending" next to "Airtime delivered".
+      const { queryClient } = await reachConfirmScreenAsSmartWallet();
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      await screen.findByTestId('transaction-button');
+
+      act(() => {
+        queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'fulfilled' });
+      });
+      await screen.findByText('Airtime delivered successfully!');
+
+      await act(async () => {
+        await capturedTransactionProps.onSuccess({ transactionReceipts: [{ transactionHash: '0xlate' }] });
+      });
+      expect(screen.queryByText(/no longer pending/)).not.toBeInTheDocument();
+    });
+
+    it('clears an earlier error once the order is delivered', async () => {
+      mockTransactionOutcome = { type: 'error', message: 'Transient wallet error' };
+      const { queryClient } = await reachConfirmScreenAsSmartWallet();
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      fireEvent.click(await screen.findByTestId('transaction-button'));
+      expect(await screen.findByText('Transient wallet error')).toBeInTheDocument();
+
+      act(() => {
+        queryClient.setQueryData(['orderStatus', 'order-ref-1'], { status: 'fulfilled' });
+      });
+      await screen.findByText('Airtime delivered successfully!');
+      expect(screen.queryByText('Transient wallet error')).not.toBeInTheDocument();
     });
 
     it('does not reject a successful payment when the order already flipped to "processing"', async () => {
@@ -1025,7 +1057,7 @@ describe('Platform page', () => {
       expect(await screen.findByText('Airtime delivered successfully!')).toBeInTheDocument();
     });
 
-    it('shows a refunded message with a link to the refund transaction', async () => {
+    it('shows the refund message and its link together in one section', async () => {
       installFetchMock({ orderStatus: () => ({ status: 'refunded', refund_tx_hash: '0xrefundtx', chain_id: 8453 }) });
       renderPlatform();
       fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
@@ -1033,6 +1065,30 @@ describe('Platform page', () => {
       await clickContinueWhenEnabled();
       const link = await screen.findByText('View refund transaction');
       expect(link.closest('a')).toHaveAttribute('href', expect.stringContaining('0xrefundtx'));
+      // The message and the link live in the same box, not two separate ones.
+      const box = link.closest('a')!.parentElement!;
+      expect(box).toHaveTextContent(/couldn't deliver this airtime.*View refund transaction/);
+    });
+
+    it('shows the refund message without a link when there is no refund tx hash yet', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'refunded' }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      expect(await screen.findByText(/couldn't deliver this airtime/)).toBeInTheDocument();
+      expect(screen.queryByText('View refund transaction')).not.toBeInTheDocument();
+    });
+
+    it('hides the pay / "View transaction" button once the order is refunded (EOA)', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'refunded', refund_tx_hash: '0xrefundtx', chain_id: 8453 }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText(/couldn't deliver this airtime/);
+      expect(screen.queryByText('Pay & Send Airtime')).not.toBeInTheDocument();
+      expect(screen.getByText('Back')).toBeInTheDocument();
     });
 
     it('shows a processing message while the order is being fulfilled', async () => {
