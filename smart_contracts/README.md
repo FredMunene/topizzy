@@ -112,11 +112,13 @@ deployer wallet needs a small amount of USDC on Arc rather than ETH.
 # Network RPC URLs
 ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.io
 ARC_MAINNET_RPC_URL=https://rpc.mainnet.arc.io
-
-# USDC on Arc — fixed address, identical on testnet and mainnet
-# (https://docs.arc.io/arc/references/contract-addresses)
-USDC_MAINNET_TOKEN_ADDRESS=0x3600000000000000000000000000000000000000
 ```
+
+Arc's USDC address is fixed and identical on testnet/mainnet
+(`0x3600000000000000000000000000000000000000`,
+https://docs.arc.io/arc/references/contract-addresses), so `Deploy.s.sol`
+picks it automatically from `block.chainid` — no `USDC_*_TOKEN_ADDRESS` env
+var needed for Arc deploys.
 
 ```bash
 source .env
