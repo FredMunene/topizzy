@@ -867,6 +867,66 @@ export default function Home() {
     setSmartTxnBusy(false);
   }, []);
 
+  // Shared between the smart-wallet and EOA pay branches so both surface
+  // the same order-status/success/error feedback beneath their pay button.
+  const orderStatusSection = (
+    <>
+      {orderStatus && (
+        <div className={styles.statusDisplay}>
+          {(orderStatus.status === 'processing' || (orderStatus.status === 'pending' && orderStatus.tx_hash)) && (
+            <div className={styles.processingMessage}>
+              <svg className={styles.spinnerIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40 20" strokeLinecap="round"/>
+              </svg>
+              Sending airtime to your phone…
+            </div>
+          )}
+
+          {orderStatus.status === 'fulfilled' && (
+            <div className={styles.successMessage}>
+              <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
+                <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+              </svg>
+              Airtime delivered successfully!
+            </div>
+          )}
+
+          {orderStatus.status === 'refunded' && (
+            <div className={styles.errorMessage}>
+              {orderStatus.refund_tx_hash && (
+                <div style={{marginTop: '8px', fontSize: '12px'}}>
+                  <a
+                    href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{color: '#0ea5e9', textDecoration: 'underline'}}
+                  >
+                    View refund transaction
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {payAndSendMutation.isSuccess && !orderStatus && (
+        <div className={styles.successMessage}>
+          <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
+            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+          </svg>
+          Payment successful! Processing airtime...
+        </div>
+      )}
+
+      {payAndSendMutation.isError && (
+        <div className={styles.errorBanner}>
+          Error: {payAndSendMutation.error?.message}
+        </div>
+      )}
+    </>
+  );
+
   // Hide the fixed wallet-address pill while scrolling down (it has nothing
   // to stay pinned above once the card has scrolled past it) and bring it
   // back on scroll up or near the top, so it doesn't sit fixed over content
@@ -1158,80 +1218,37 @@ export default function Home() {
                     text={payButtonText}
                     pendingOverride={{ text: 'Processing Airtime...' }}
                   />
+
+                  {orderStatusSection}
+
+                  {/* Positioned last — right above "Back" — per product
+                      request, rather than immediately next to the pay
+                      button where OnchainKit places it by default. Must
+                      stay inside <Transaction>: it reads the transaction
+                      result from that component's own context. */}
                   <TransactionToast />
                 </Transaction>
               ) : (
-                <button
-                  onClick={handlePay}
-                  disabled={
-                    payAndSendMutation.isPending ||
-                    eoaTxnBusy ||
-                    !isConnected ||
-                    orderStatus?.status === 'refunded' ||
-                    orderStatus?.status === 'fulfilled' ||
-                    isOrderProcessing ||
-                    currentAirtimeSendState === 'pending' ||
-                    currentAirtimeSendState === 'done'
-                  }
-                  className={styles.continueButton}
-                >
-                  {payButtonText}
-                </button>
-              )}
+                <>
+                  <button
+                    onClick={handlePay}
+                    disabled={
+                      payAndSendMutation.isPending ||
+                      eoaTxnBusy ||
+                      !isConnected ||
+                      orderStatus?.status === 'refunded' ||
+                      orderStatus?.status === 'fulfilled' ||
+                      isOrderProcessing ||
+                      currentAirtimeSendState === 'pending' ||
+                      currentAirtimeSendState === 'done'
+                    }
+                    className={styles.continueButton}
+                  >
+                    {payButtonText}
+                  </button>
 
-              {/* Order Status Display */}
-              {orderStatus && (
-                <div className={styles.statusDisplay}>
-                  {(orderStatus.status === 'processing' || (orderStatus.status === 'pending' && orderStatus.tx_hash)) && (
-                    <div className={styles.processingMessage}>
-                      <svg className={styles.spinnerIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40 20" strokeLinecap="round"/>
-                      </svg>
-                      Sending airtime to your phone…
-                    </div>
-                  )}
-
-                  {orderStatus.status === 'fulfilled' && (
-                    <div className={styles.successMessage}>
-                      <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-                      </svg>
-                      Airtime delivered successfully!
-                    </div>
-                  )}
-                  
-                  {orderStatus.status === 'refunded' && (
-                    <div className={styles.errorMessage}>
-                      {orderStatus.refund_tx_hash && (
-                        <div style={{marginTop: '8px', fontSize: '12px'}}>
-                          <a
-                            href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{color: '#0ea5e9', textDecoration: 'underline'}}
-                          >
-                            View refund transaction
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {payAndSendMutation.isSuccess && !orderStatus && (
-                <div className={styles.successMessage}>
-                  <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-                  </svg>
-                  Payment successful! Processing airtime...
-                </div>
-              )}
-
-              {payAndSendMutation.isError && (
-                <div className={styles.errorBanner}>
-                  Error: {payAndSendMutation.error?.message}
-                </div>
+                  {orderStatusSection}
+                </>
               )}
 
               <button

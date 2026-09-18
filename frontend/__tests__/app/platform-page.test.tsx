@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import styles from '@/app/platform/page.module.css';
 
 // ---------------------------------------------------------------------------
 // wagmi
@@ -574,10 +575,9 @@ describe('Platform page', () => {
       fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
       await clickContinueWhenEnabled();
       await screen.findByText('Confirm Payment');
-      // The order-status query's first resolution (undefined -> 'pending')
-      // fires an effect that resets smartFlowStarted to false. Let it settle
-      // before clicking, or a click that lands just before it resolves gets
-      // silently undone.
+      // Let the order-status query's first resolution settle before
+      // clicking, matching how a real user would never click before the
+      // screen finishes its initial data fetch.
       await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/orders/order-ref-1')
       ));
@@ -596,6 +596,24 @@ describe('Platform page', () => {
       await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/airtime/send', expect.objectContaining({
         body: expect.stringContaining('0xsmarttx1'),
       })));
+    });
+
+    it('renders the transaction toast last, below the order-status section and above Back', async () => {
+      mockTransactionOutcome = { type: 'success', txHash: '0xsmarttx1' };
+      await reachConfirmScreenAsSmartWallet();
+
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      const txButton = await screen.findByTestId('transaction-button');
+      fireEvent.click(txButton);
+
+      const toast = await screen.findByTestId('transaction-toast');
+      const backButton = screen.getByText('Back');
+      const statusDisplay = document.body.querySelector(`.${styles.statusDisplay}`);
+
+      // Node.DOCUMENT_POSITION_FOLLOWING: statusDisplay comes before toast,
+      // and toast comes before the Back button, in document order.
+      expect(statusDisplay!.compareDocumentPosition(toast) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(toast.compareDocumentPosition(backButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('shows the error message when the smart wallet transaction fails', async () => {
