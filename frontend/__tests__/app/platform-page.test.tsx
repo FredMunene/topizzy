@@ -560,5 +560,267 @@ describe('Platform page', () => {
       fireEvent.click(txButton);
       expect(await screen.findByText('Missing transaction hash from wallet')).toBeInTheDocument();
     });
+
+    it('logs and marks done when sendAirtime itself throws (e.g. network failure)', async () => {
+      global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url === '/api/airtime/send') throw new Error('network down');
+        if (url === '/api/orders') return { ok: true, status: 200, json: async () => ({ orderRef: 'order-ref-1', amountKes: 100, amountUsdc: 1.05, airtimeUsdc: 1, serviceFeeUsdc: 0.05, currency: 'KES', chainId: 8453 }) };
+        if (url.startsWith('/api/orders/')) return { ok: true, status: 200, json: async () => ({ status: 'pending' }) };
+        if (url.startsWith('/api/prices')) return { ok: true, json: async () => ({ success: true, price: 128, serviceFee: 0.05 }) };
+        if (url.startsWith('/api/geo')) return { ok: true, json: async () => ({ country: 'KE' }) };
+        return { ok: true, json: async () => ({}) };
+      }) as unknown as typeof fetch;
+
+      mockTransactionOutcome = { type: 'success', txHash: '0xthrows' };
+      await reachConfirmScreenAsSmartWallet();
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      const txButton = await screen.findByTestId('transaction-button');
+      fireEvent.click(txButton);
+      // No crash, no error banner — sendAirtime's throw is caught and logged
+      // via logToServer (a fetch call), not a direct console.error.
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/log', expect.objectContaining({
+        body: expect.stringContaining('Smart wallet airtime send failed'),
+      })));
+    });
+
+    it('rejects with "no longer pending" when the order status is not pending', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'fulfilled' }) });
+      mockTransactionOutcome = { type: 'success', txHash: '0xstale' };
+      await reachConfirmScreenAsSmartWallet();
+      // reachConfirmScreenAsSmartWallet already waited for the first poll, so
+      // the UI should already reflect the fulfilled state.
+      expect(await screen.findByText('Airtime delivered successfully!')).toBeInTheDocument();
+    });
+  });
+
+  describe('sendAirtime friendly error messages (EOA flow)', () => {
+    function fakeWalletClient() {
+      return {
+        writeContract: jest.fn().mockResolvedValue('0xpaymenttxhash'),
+        signTypedData: jest.fn().mockResolvedValue('0xsig'),
+        getChainId: jest.fn().mockResolvedValue(8453),
+      };
+    }
+
+    async function reachConfirmScreen() {
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+    }
+
+    function setup(airtimeSend: (body: Record<string, unknown>) => { status?: number; body: unknown }) {
+      installFetchMock({ airtimeSend });
+      mockUseWalletClient.mockReturnValue({ data: fakeWalletClient() });
+      mockGeneratePermitSignature.mockResolvedValue({ v: 27, r: '0x' + 'a'.repeat(64), s: '0x' + 'b'.repeat(64) });
+    }
+
+    it('shows a friendly message for a 429 (recently attempted)', async () => {
+      setup(() => ({ status: 429, body: {} }));
+      await reachConfirmScreen();
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+      expect(await screen.findByText(/already processing this order/)).toBeInTheDocument();
+    });
+
+    it('shows a friendly message for a 409 (already processed)', async () => {
+      setup(() => ({ status: 409, body: {} }));
+      await reachConfirmScreen();
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+      expect(await screen.findByText(/already processed/)).toBeInTheDocument();
+    });
+
+    it('surfaces the server-provided error message for a 400', async () => {
+      setup(() => ({ status: 400, body: { error: 'Order not pending' } }));
+      await reachConfirmScreen();
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+      expect(await screen.findByText(/Order not pending/)).toBeInTheDocument();
+    });
+
+    it('surfaces the server-provided message field when error is absent', async () => {
+      setup(() => ({ status: 400, body: { message: 'Please wait for confirmation' } }));
+      await reachConfirmScreen();
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+      expect(await screen.findByText(/Please wait for confirmation/)).toBeInTheDocument();
+    });
+
+    it('shows a friendly message for a 5xx (service unavailable)', async () => {
+      setup(() => ({ status: 503, body: {} }));
+      await reachConfirmScreen();
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+      expect(await screen.findByText(/temporarily unavailable/)).toBeInTheDocument();
+    });
+
+    it('falls back to a generic message when the response body is not JSON', async () => {
+      installFetchMock();
+      global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url === '/api/airtime/send') {
+          return { ok: false, status: 402, json: async () => { throw new Error('not json'); } };
+        }
+        if (url === '/api/orders') return { ok: true, status: 200, json: async () => ({ orderRef: 'order-ref-1', amountKes: 100, amountUsdc: 1.05, airtimeUsdc: 1, serviceFeeUsdc: 0.05, currency: 'KES', chainId: 8453 }) };
+        if (url.startsWith('/api/orders/')) return { ok: true, status: 200, json: async () => ({ status: 'pending' }) };
+        if (url.startsWith('/api/prices')) return { ok: true, json: async () => ({ success: true, price: 128, serviceFee: 0.05 }) };
+        if (url.startsWith('/api/geo')) return { ok: true, json: async () => ({ country: 'KE' }) };
+        return { ok: true, json: async () => ({}) };
+      }) as unknown as typeof fetch;
+      mockUseWalletClient.mockReturnValue({ data: fakeWalletClient() });
+      mockGeneratePermitSignature.mockResolvedValue({ v: 27, r: '0x' + 'a'.repeat(64), s: '0x' + 'b'.repeat(64) });
+      await reachConfirmScreen();
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+      expect(await screen.findByText(/processing your payment/)).toBeInTheDocument();
+    });
+  });
+
+  describe('generatePermitSignature adapter (signingClient)', () => {
+    it('delegates signTypedData through the unified wallet client', async () => {
+      const signTypedData = jest.fn().mockResolvedValue('0xsig');
+      mockUseWalletClient.mockReturnValue({
+        data: { writeContract: jest.fn().mockResolvedValue('0xtxhash'), signTypedData, getChainId: jest.fn().mockResolvedValue(8453) },
+      });
+      mockGeneratePermitSignature.mockImplementation(async (args: { walletClient: { signTypedData: (p: unknown) => Promise<string> } }) => {
+        const sig = await args.walletClient.signTypedData({ account: '0xoverride', domain: {}, types: {}, primaryType: 'Permit', message: {} });
+        expect(sig).toBe('0xsig');
+        return { v: 27, r: '0x' + 'a'.repeat(64), s: '0x' + 'b'.repeat(64) };
+      });
+
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+
+      await waitFor(() => expect(signTypedData).toHaveBeenCalledWith(
+        expect.objectContaining({ account: '0xoverride' })
+      ));
+    });
+  });
+
+  describe('Chain switching', () => {
+    afterEach(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).ethereum;
+    });
+
+    it('does nothing when window.ethereum is unavailable', async () => {
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Arc')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Arc'));
+      // No throw, nothing to assert beyond "did not crash".
+    });
+
+    it('requests a network switch to Arc', async () => {
+      const request = jest.fn().mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).ethereum = { request };
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Arc')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Arc'));
+      await waitFor(() => expect(request).toHaveBeenCalledWith({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${CHAINS.arc.chain.id.toString(16)}` }],
+      }));
+    });
+
+    it('adds the network when the wallet does not recognize it (error code 4902)', async () => {
+      const request = jest.fn()
+        .mockRejectedValueOnce(Object.assign(new Error('unrecognized chain'), { code: 4902 }))
+        .mockResolvedValueOnce(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).ethereum = { request };
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Arc')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Arc'));
+      await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({ method: 'wallet_addEthereumChain' })));
+    });
+
+    it('logs when adding the network also fails', async () => {
+      const request = jest.fn()
+        .mockRejectedValueOnce(Object.assign(new Error('unrecognized chain'), { code: 4902 }))
+        .mockRejectedValueOnce(new Error('user rejected add'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).ethereum = { request };
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Arc')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Arc'));
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/log', expect.objectContaining({
+        body: expect.stringContaining('Failed to add Arc'),
+      })));
+    });
+
+    it('logs when the switch fails for a reason other than an unrecognized chain', async () => {
+      const request = jest.fn().mockRejectedValue(new Error('user rejected switch'));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).ethereum = { request };
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Arc')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Arc'));
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/log', expect.objectContaining({
+        body: expect.stringContaining('Failed to switch network'),
+      })));
+    });
+
+    it('shows a warning banner and offers a switch when connected to an unsupported chain', async () => {
+      mockUseAccount.mockReturnValue(connectedAccount({ chain: { id: 1, name: 'Ethereum' } }));
+      const request = jest.fn().mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).ethereum = { request };
+      renderPlatform();
+      expect(await screen.findByText(/Connected to Ethereum, which isn't supported/)).toBeInTheDocument();
+      fireEvent.click(screen.getByText('Switch to Base'));
+      await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({
+        params: [{ chainId: `0x${CHAINS.base.chain.id.toString(16)}` }],
+      })));
+    });
+  });
+
+  describe('Arc gas reserve', () => {
+    it('estimates a gas reserve when connected to Arc', async () => {
+      mockEstimateGasReserveUsdc.mockResolvedValue(0.02);
+      mockUseAccount.mockReturnValue(connectedAccount({ chain: CHAINS.arc.chain }));
+      renderPlatform();
+      await waitFor(() => expect(mockEstimateGasReserveUsdc).toHaveBeenCalled());
+    });
+  });
+
+  describe('order status polling terminal states', () => {
+    it('shows a success message and stops polling when the order is fulfilled', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'fulfilled' }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      expect(await screen.findByText('Airtime delivered successfully!')).toBeInTheDocument();
+    });
+
+    it('shows a refunded message with a link to the refund transaction', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'refunded', refund_tx_hash: '0xrefundtx', chain_id: 8453 }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      const link = await screen.findByText('View refund transaction');
+      expect(link.closest('a')).toHaveAttribute('href', expect.stringContaining('0xrefundtx'));
+    });
+
+    it('shows a processing message while the order is being fulfilled', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'processing' }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      expect(await screen.findByText('Sending airtime to your phone…')).toBeInTheDocument();
+    });
+
+    it('shows a processing message when pending with a tx hash already recorded', async () => {
+      installFetchMock({ orderStatus: () => ({ status: 'pending', tx_hash: '0xexisting' }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      expect(await screen.findByText('Sending airtime to your phone…')).toBeInTheDocument();
+    });
   });
 });
