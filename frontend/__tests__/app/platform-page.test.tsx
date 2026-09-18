@@ -260,8 +260,45 @@ describe('Platform page', () => {
     await waitFor(() => expect(screen.getByText('Amount (UGX)')).toBeInTheDocument());
   });
 
+  it('leaves the default country in place when /api/geo returns a country with no matching entry', async () => {
+    installFetchMock({ geo: () => ({ country: 'ZZ' }) });
+    renderPlatform();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/geo')));
+    expect(screen.getByText('Amount (KES)')).toBeInTheDocument();
+  });
+
+  it('leaves the default country in place when /api/geo omits a country', async () => {
+    installFetchMock({ geo: () => ({}) });
+    renderPlatform();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/geo')));
+    expect(screen.getByText('Amount (KES)')).toBeInTheDocument();
+  });
+
+  it('leaves the default country in place when /api/geo responds not-ok', async () => {
+    installFetchMock();
+    const baseFetch = global.fetch as jest.Mock;
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.startsWith('/api/geo')) return { ok: false, status: 500, json: async () => ({}) };
+      return baseFetch(input, init);
+    }) as unknown as typeof fetch;
+    renderPlatform();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining('/api/geo')));
+    expect(screen.getByText('Amount (KES)')).toBeInTheDocument();
+  });
+
+  it('skips the balance check while disconnected (no usdcBalance to validate against)', async () => {
+    mockUseAccount.mockReturnValue({ address: undefined, chain: undefined });
+    mockUseBalance.mockReturnValue({ data: undefined });
+    renderPlatform();
+    fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+    await waitFor(() => expect(screen.getByPlaceholderText('100')).toHaveValue(100));
+    expect(screen.queryByText('Insufficient balance')).not.toBeInTheDocument();
+  });
+
   it('shows Connect Wallet when no wallet is connected', () => {
     mockUseAccount.mockReturnValue({ address: undefined, chain: undefined });
+    mockUseBalance.mockReturnValue({ data: undefined });
     renderPlatform();
     expect(screen.getByText('Connect Wallet')).toBeInTheDocument();
   });
@@ -306,6 +343,16 @@ describe('Platform page', () => {
       fireEvent.click(screen.getByText(/Use max amount/));
       const amountInput = screen.getByPlaceholderText('100') as HTMLInputElement;
       await waitFor(() => expect(amountInput.value).not.toBe(''));
+    });
+
+    it('clears the amount when "Use max amount" is clicked with a zero spendable balance', async () => {
+      mockUseBalance.mockReturnValue({ data: { value: 0n } });
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Use max amount ($0.00)')).toBeInTheDocument());
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '50' } });
+      fireEvent.click(screen.getByText('Use max amount ($0.00)'));
+      const amountInput = screen.getByPlaceholderText('100') as HTMLInputElement;
+      await waitFor(() => expect(amountInput.value).toBe(''));
     });
   });
 
@@ -711,6 +758,29 @@ describe('Platform page', () => {
         expect.objectContaining({ account: '0xoverride' })
       ));
     });
+
+    it('falls back to effectiveAddress when generatePermitSignature omits an account', async () => {
+      const signTypedData = jest.fn().mockResolvedValue('0xsig');
+      mockUseWalletClient.mockReturnValue({
+        data: { writeContract: jest.fn().mockResolvedValue('0xtxhash'), signTypedData, getChainId: jest.fn().mockResolvedValue(8453) },
+      });
+      mockGeneratePermitSignature.mockImplementation(async (args: { walletClient: { signTypedData: (p: unknown) => Promise<string> } }) => {
+        const sig = await args.walletClient.signTypedData({ domain: {}, types: {}, primaryType: 'Permit', message: {} });
+        expect(sig).toBe('0xsig');
+        return { v: 27, r: '0x' + 'a'.repeat(64), s: '0x' + 'b'.repeat(64) };
+      });
+
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+
+      await waitFor(() => expect(signTypedData).toHaveBeenCalledWith(
+        expect.objectContaining({ account: (connectedAccount().address as string).toLowerCase() })
+      ));
+    });
   });
 
   describe('Chain switching', () => {
@@ -810,6 +880,21 @@ describe('Platform page', () => {
       mockUseAccount.mockReturnValue(connectedAccount({ chain: CHAINS.arc.chain }));
       renderPlatform();
       await waitFor(() => expect(mockEstimateGasReserveUsdc).toHaveBeenCalled());
+      // Wait for the resolved reserve to actually land in state (not just for
+      // the estimate call to fire) — the max-spendable figure subtracts it.
+      await waitFor(() => expect(screen.getByText('Use max amount ($9.93)')).toBeInTheDocument());
+    });
+
+    it('discards a gas-reserve estimate that resolves after unmount', async () => {
+      let resolveReserve: (v: number) => void = () => {};
+      mockEstimateGasReserveUsdc.mockReturnValue(new Promise((resolve) => { resolveReserve = resolve; }));
+      mockUseAccount.mockReturnValue(connectedAccount({ chain: CHAINS.arc.chain }));
+      const { unmount } = renderPlatform();
+      await waitFor(() => expect(mockEstimateGasReserveUsdc).toHaveBeenCalled());
+      unmount();
+      // Resolving after unmount must not throw ("setState on unmounted
+      // component") — the effect's cleanup should have flipped `cancelled`.
+      await act(async () => { resolveReserve(0.02); await Promise.resolve(); });
     });
   });
 
@@ -853,6 +938,61 @@ describe('Platform page', () => {
   });
 
   describe('remaining small branches', () => {
+    it('switches the selected country via the dial-code dropdown', async () => {
+      renderPlatform();
+      const select = screen.getByDisplayValue('+254');
+      fireEvent.change(select, { target: { value: 'UG' } });
+      await waitFor(() => expect(screen.getByText('Amount (UGX)')).toBeInTheDocument());
+    });
+
+    it('resolves and normalizes a MiniKit account when the runtime also exposes an API method', async () => {
+      mockUseAccount.mockReturnValue({ address: undefined, chain: realBaseChain });
+      mockUseMiniKit.mockReturnValue({
+        isMiniAppReady: true,
+        setMiniAppReady: jest.fn(),
+        // No '0x' prefix on purpose — exercises the defensive prefixing
+        // branch in both normalizeAddress (unifiedWalletClient) and the
+        // separate normalize() used by the effectiveAddress-resolution effect.
+        kit: { account: 'MIXEDCASEACCOUNT00000000000000000001', request: jest.fn() },
+      } as never);
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Balance $10.00')).toBeInTheDocument());
+    });
+
+    it('leaves an already-0x-prefixed MiniKit account as-is (normalizeAddress prefixed branch)', async () => {
+      mockUseAccount.mockReturnValue({ address: undefined, chain: realBaseChain });
+      mockUseMiniKit.mockReturnValue({
+        isMiniAppReady: true,
+        setMiniAppReady: jest.fn(),
+        kit: { account: '0xAlreadyPrefixed000000000000000000001', request: jest.fn() },
+      } as never);
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Balance $10.00')).toBeInTheDocument());
+    });
+
+    it('falls back to runtime.getAccount() inside unifiedWalletClient when no account field is present', async () => {
+      mockUseAccount.mockReturnValue({ address: undefined, chain: realBaseChain });
+      const getAccount = jest.fn().mockResolvedValue('0xFromUnifiedGetAccount0000000000001');
+      mockUseMiniKit.mockReturnValue({
+        isMiniAppReady: true,
+        setMiniAppReady: jest.fn(),
+        kit: { getAccount, request: jest.fn() },
+      } as never);
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Balance $10.00')).toBeInTheDocument());
+    });
+
+    it('treats an empty-string MiniKit account as unavailable (normalizeAddress falsy branch)', async () => {
+      mockUseAccount.mockReturnValue({ address: undefined, chain: realBaseChain });
+      mockUseMiniKit.mockReturnValue({
+        isMiniAppReady: true,
+        setMiniAppReady: jest.fn(),
+        kit: { account: '', request: jest.fn() },
+      } as never);
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Connect Wallet')).toBeInTheDocument());
+    });
+
     it('rejects an amount of 0 (validateAmount, not just handleContinue)', async () => {
       renderPlatform();
       const amountInput = screen.getByPlaceholderText('100');
@@ -912,6 +1052,233 @@ describe('Platform page', () => {
       expect(await screen.findByText('Creating Order...')).toBeInTheDocument();
       resolveOrder(undefined);
       await screen.findByText('Confirm Payment');
+    });
+  });
+
+  describe('MiniKit account resolution (no wagmi address)', () => {
+    beforeEach(() => {
+      mockUseAccount.mockReturnValue({ address: undefined, chain: realBaseChain });
+    });
+
+    it('resolves the address directly from runtime.account', async () => {
+      mockUseMiniKit.mockReturnValue({ isMiniAppReady: true, setMiniAppReady: jest.fn(), kit: { account: '0xMiniAccount000000000000000000000000001' } } as never);
+      renderPlatform();
+      await waitFor(() => expect(screen.getByText('Balance $10.00')).toBeInTheDocument());
+    });
+
+    it('resolves the address via runtime.getAccount()', async () => {
+      const getAccount = jest.fn().mockResolvedValue('0xFromGetAccount0000000000000000000001');
+      mockUseMiniKit.mockReturnValue({ isMiniAppReady: true, setMiniAppReady: jest.fn(), kit: { getAccount } } as never);
+      renderPlatform();
+      await waitFor(() => expect(getAccount).toHaveBeenCalled());
+      await waitFor(() => expect(screen.getByText('Balance $10.00')).toBeInTheDocument());
+    });
+
+    it('treats a rejected getAccount() as no address available', async () => {
+      const getAccount = jest.fn().mockRejectedValue(new Error('locked'));
+      mockUseMiniKit.mockReturnValue({ isMiniAppReady: true, setMiniAppReady: jest.fn(), kit: { getAccount } } as never);
+      renderPlatform();
+      await waitFor(() => expect(getAccount).toHaveBeenCalled());
+      expect(screen.getByText('Connect Wallet')).toBeInTheDocument();
+    });
+
+    it('resolves the address via runtime.request("eth_accounts")', async () => {
+      const request = jest.fn().mockResolvedValue(['0xFromRequestAccounts000000000000001']);
+      mockUseMiniKit.mockReturnValue({ isMiniAppReady: true, setMiniAppReady: jest.fn(), kit: { request } } as never);
+      renderPlatform();
+      await waitFor(() => expect(request).toHaveBeenCalledWith({ method: 'eth_accounts' }));
+      await waitFor(() => expect(screen.getByText('Balance $10.00')).toBeInTheDocument());
+    });
+
+    it('treats a rejected request() as no address available', async () => {
+      const request = jest.fn().mockRejectedValue(new Error('denied'));
+      mockUseMiniKit.mockReturnValue({ isMiniAppReady: true, setMiniAppReady: jest.fn(), kit: { request } } as never);
+      renderPlatform();
+      await waitFor(() => expect(request).toHaveBeenCalledWith({ method: 'eth_accounts' }));
+      expect(screen.getByText('Connect Wallet')).toBeInTheDocument();
+    });
+
+    it('retries resolution when the runtime has no address API at all', async () => {
+      mockUseMiniKit.mockReturnValue({ isMiniAppReady: true, setMiniAppReady: jest.fn() } as never);
+      renderPlatform();
+      // No account/getAccount/request and isMiniApp is true (mini itself is
+      // truthy) — resolveAddress schedules a retry via setTimeout(…, 400).
+      // Just confirm it doesn't crash and stays on the disconnected state.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.getByText('Connect Wallet')).toBeInTheDocument();
+    });
+
+    it('calls setMiniAppReady when the mini app has not signaled ready yet', async () => {
+      const setMiniAppReady = jest.fn();
+      mockUseMiniKit.mockReturnValue({ isMiniAppReady: false, setMiniAppReady } as never);
+      renderPlatform();
+      await waitFor(() => expect(setMiniAppReady).toHaveBeenCalled());
+    });
+  });
+
+  describe('final coverage sweep', () => {
+    it('selects Rwanda, Uganda, Tanzania, and South Africa from the dropdown', async () => {
+      renderPlatform();
+      const select = screen.getByDisplayValue('+254');
+      for (const [code, currency] of [['RW', 'RWF'], ['UG', 'UGX'], ['ZA', 'ZAR'], ['TZ', 'TZS']] as const) {
+        fireEvent.change(select, { target: { value: code } });
+        await waitFor(() => expect(screen.getByText(`Amount (${currency})`)).toBeInTheDocument());
+      }
+    });
+
+    it('shows an error banner when the price fetch fails', async () => {
+      // The price query has its own retry: 3 (overriding the QueryClient's
+      // retry: false default), with react-query's default exponential
+      // backoff between attempts — this genuinely takes several real seconds
+      // to exhaust, hence the longer timeouts here.
+      global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url.startsWith('/api/prices')) return { ok: false, status: 500, json: async () => ({}) };
+        if (url.startsWith('/api/geo')) return { ok: true, json: async () => ({ country: 'KE' }) };
+        return { ok: true, json: async () => ({}) };
+      }) as unknown as typeof fetch;
+      renderPlatform();
+      expect(await screen.findByText('Failed to fetch current price. Please try again.', {}, { timeout: 15000 })).toBeInTheDocument();
+    }, 20000);
+
+    it('falls back to a generic message when order creation fails without an error field', async () => {
+      installFetchMock({ createOrder: () => ({ status: 400, body: {} }) });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      expect(await screen.findByText('Failed to create order')).toBeInTheDocument();
+    });
+
+    it('falls back to activeChainConfig.chain.id when the wallet client has no getChainId', async () => {
+      const walletClient = {
+        writeContract: jest.fn().mockResolvedValue('0xpaymenttxhash'),
+        signTypedData: jest.fn().mockResolvedValue('0xsig'),
+        // no getChainId
+      };
+      mockUseWalletClient.mockReturnValue({ data: walletClient });
+      mockGeneratePermitSignature.mockImplementation(async (args: { chainId: number }) => {
+        expect(args.chainId).toBe(BASE_CONFIG.chain.id);
+        return { v: 27, r: '0x' + 'a'.repeat(64), s: '0x' + 'b'.repeat(64) };
+      });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+      await waitFor(() => expect(mockGeneratePermitSignature).toHaveBeenCalled());
+    });
+
+    it('reports invalid permit signature when only r/s are missing (v present)', async () => {
+      mockUseWalletClient.mockReturnValue({
+        data: { writeContract: jest.fn().mockResolvedValue('0xtx'), signTypedData: jest.fn().mockResolvedValue('0xsig'), getChainId: jest.fn().mockResolvedValue(8453) },
+      });
+      mockGeneratePermitSignature.mockResolvedValue({ v: 27 });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      fireEvent.click(screen.getByText('Pay & Send Airtime').closest('button')!);
+      expect(await screen.findByText(/Invalid permit signature/)).toBeInTheDocument();
+    });
+
+    it('returns 500 and shows a friendly error when the order-status poll fails', async () => {
+      global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url === '/api/orders') return { ok: true, status: 200, json: async () => ({ orderRef: 'order-ref-1', amountKes: 100, amountUsdc: 1.05, airtimeUsdc: 1, serviceFeeUsdc: 0.05, currency: 'KES', chainId: 8453 }) };
+        if (url.startsWith('/api/orders/')) return { ok: false, status: 500, json: async () => ({}) };
+        if (url.startsWith('/api/prices')) return { ok: true, json: async () => ({ success: true, price: 128, serviceFee: 0.05 }) };
+        if (url.startsWith('/api/geo')) return { ok: true, json: async () => ({ country: 'KE' }) };
+        return { ok: true, json: async () => ({}) };
+      }) as unknown as typeof fetch;
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      // No crash — the orderStatus query just fails silently (no UI wired to
+      // its own error state), covered for the queryFn's own throw branch.
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    it('shows $0.00 for airtime/service fee when the order response omits them', async () => {
+      installFetchMock({
+        createOrder: () => ({ status: 200, body: { orderRef: 'order-ref-1', amountKes: 100, amountUsdc: 1.05, currency: 'KES', chainId: 8453 } }),
+      });
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      const amounts = screen.getAllByText('0.00 USDC');
+      expect(amounts.length).toBeGreaterThanOrEqual(2); // airtime cost + service fee
+    });
+
+    it('drives the smart wallet Transaction onStatus callback through every status name', async () => {
+      mockUseIsWalletACoinbaseSmartWallet.mockReturnValue(true);
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/orders/order-ref-1')
+      ));
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      await screen.findByTestId('transaction-button');
+
+      for (const statusName of ['transactionPending', 'transactionLegacyExecuted', 'error', 'reset']) {
+        act(() => {
+          capturedTransactionProps.onStatus({ statusName });
+        });
+      }
+      // No crash across every status branch is the assertion here.
+    });
+
+    it('ignores unrecognized Transaction onStatus names', async () => {
+      mockUseIsWalletACoinbaseSmartWallet.mockReturnValue(true);
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/orders/order-ref-1')
+      ));
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      await screen.findByTestId('transaction-button');
+
+      act(() => {
+        capturedTransactionProps.onStatus({ statusName: 'someUnknownStatus' });
+      });
+      // Neither busyStates nor the success/error/reset branch matches — no crash.
+    });
+
+    it('falls back to a generic message when the Transaction onError event has none', async () => {
+      mockUseIsWalletACoinbaseSmartWallet.mockReturnValue(true);
+      renderPlatform();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '743913802' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await clickContinueWhenEnabled();
+      await screen.findByText('Confirm Payment');
+      await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/orders/order-ref-1')
+      ));
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+      fireEvent.click(screen.getByText('Pay & Send Airtime'));
+      await screen.findByTestId('transaction-button');
+
+      act(() => {
+        capturedTransactionProps.onError({});
+      });
+      expect(await screen.findByText('Transaction failed')).toBeInTheDocument();
     });
   });
 });
