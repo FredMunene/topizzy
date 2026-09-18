@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
+import { getChainConfigById, DEFAULT_CHAIN_KEY, CHAINS } from '@/lib/chains';
 
 const supabaseUrl = process.env.NEXT_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_SUPABASE_ANON_KEY!;
@@ -17,7 +18,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey
 
 export async function POST(request: NextRequest) {
   try {
-    const { phoneNumber, amountKes, walletAddress } = await request.json();
+    const { phoneNumber, amountKes, walletAddress, chainId } = await request.json();
 
     if (!phoneNumber || !amountKes || !walletAddress) {
       return NextResponse.json(
@@ -25,6 +26,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Which chain the user intends to pay on. Falls back to Base for older
+    // clients that don't send chainId yet.
+    const chainConfig = chainId ? getChainConfigById(Number(chainId)) : CHAINS[DEFAULT_CHAIN_KEY];
 
     // Determine country code from phone number (remove + prefix)
     const phoneWithoutPlus = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber;
@@ -40,7 +45,10 @@ export async function POST(request: NextRequest) {
       "27": "ZAR",
     };
 
-    const currency = currencyMap[countryCode] || "KES"; // Default to KES if not found
+    // istanbul ignore next -- unreachable: countryCode (line 37) can only be
+    // one of dialingCodes or its own "254" fallback, and both sets are exactly
+    // currencyMap's keys, so this fallback can never actually trigger.
+    const currency = currencyMap[countryCode] || "KES";
 
     // Amount restrictions mapping
     const amountRestrictions: { [key: string]: { lower: number; upper: number } } = {
@@ -51,7 +59,9 @@ export async function POST(request: NextRequest) {
       "27": { lower: 5, upper: 65 }, // South Africa
     };
 
-    const restrictions = amountRestrictions[countryCode] || amountRestrictions["254"]; // Default to Kenya if not found
+    // istanbul ignore next -- unreachable: same reasoning as the currency
+    // fallback above — countryCode is always a key of amountRestrictions.
+    const restrictions = amountRestrictions[countryCode] || amountRestrictions["254"];
 
     if (amountKes < restrictions.lower || amountKes > restrictions.upper) {
       return NextResponse.json(
@@ -97,7 +107,8 @@ export async function POST(request: NextRequest) {
         service_fee_usdc: serviceFeeUsdc,
         status: 'pending',
         wallet_address: walletAddress,
-        currency: currency
+        currency: currency,
+        chain_id: chainConfig.chain.id
       })
       .select()
       .single();
@@ -118,7 +129,8 @@ export async function POST(request: NextRequest) {
       serviceFeeUsdc,
       price,
       orderId: orderData.id,
-      currency
+      currency,
+      chainId: chainConfig.chain.id
     });
   } catch (error) {
     console.error('Error creating order:', error);

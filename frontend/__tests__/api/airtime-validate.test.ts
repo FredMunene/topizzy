@@ -97,4 +97,28 @@ describe('POST /api/airtime/validate', () => {
     const json = await res.json();
     expect(json.status).toBe('Validated');
   });
+
+  it('falls back to phone number + amount lookup when requestMetadata has no orderRef', async () => {
+    const { requestMetadata: _, ...withoutOrderRef } = validPayload;
+    mockSingle.mockResolvedValueOnce({
+      data: { currency: 'KES', order_ref: 'abc12345' },
+      error: null,
+    });
+    const res = await POST(makeRequest(withoutOrderRef));
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 500 when the request body is not valid JSON', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const req = new NextRequest('http://localhost/api/airtime/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not json',
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.status).toBe('Failed');
+    errorSpy.mockRestore();
+  });
 });

@@ -102,6 +102,54 @@ forge script script/Deploy.s.sol \
   -vvvv
 ```
 
+### Arc (Circle's USDC-native L1)
+
+Arc is a separate EVM-compatible chain — the contract needs its own deployment
+there, pointed at Arc's USDC address. Arc uses USDC itself to pay gas, so the
+deployer wallet needs a small amount of USDC on Arc rather than ETH.
+
+```bash
+# Network RPC URLs
+ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.io
+ARC_MAINNET_RPC_URL=https://rpc.mainnet.arc.io
+```
+
+Arc's USDC address is fixed and identical on testnet/mainnet
+(`0x3600000000000000000000000000000000000000`,
+https://docs.arc.io/arc/references/contract-addresses), so `Deploy.s.sol`
+picks it automatically from `block.chainid` — no `USDC_*_TOKEN_ADDRESS` env
+var needed for Arc deploys.
+
+```bash
+source .env
+
+# Deploy to Arc Testnet first — get testnet USDC from https://faucet.circle.com
+forge script script/Deploy.s.sol \
+  --rpc-url $ARC_TESTNET_RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
+  -vvvv
+
+# Deploy to Arc Mainnet
+forge script script/Deploy.s.sol \
+  --rpc-url $ARC_MAINNET_RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --broadcast \
+  -vvvv
+```
+
+Arc's block explorer (https://explorer.arc.io) is not Etherscan-based, so
+`--verify --etherscan-api-key` doesn't apply here — verify manually through
+the explorer once it's live if source verification is supported.
+
+**`depositWithPermit()` on Arc:** confirmed working. Arc's USDC implements
+EIP-2612 `permit()` with domain name `"USDC"` and version `"2"`, same as Base
+(see Circle's own arc-node repo: https://github.com/circlefin/arc-node/issues/164).
+The frontend uses the gasless permit flow for both chains
+(`frontend/lib/chains.ts` → `CHAINS.arc.supportsPermit = true`). The plain
+`approve()` + `deposit()` path stays in the codebase as a fallback for any
+future chain added without permit support.
+
 ## Post-Deployment
 
 After deployment:
@@ -112,15 +160,18 @@ After deployment:
    Treasury address: 0x...
    ```
 
-2. **Update frontend environment variables** - Add to `frontend/.env`:
+2. **Update frontend environment variables** - Add to `frontend/.env`, using the
+   chain-specific variable for whichever network you deployed to:
    ```
-   NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS=0x...
-   TREASURY_PRIVATE_KEY=0x...  # Same as deployer (for refunds)
+   NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS_BASE=0x...
+   NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS_ARC=0x...
+   TREASURY_PRIVATE_KEY=0x...  # Same as deployer (for refunds); one key can operate on both chains
    ```
 
-3. **Verify on Basescan**:
+3. **Verify on the block explorer**:
    - Base Sepolia: https://sepolia.basescan.org/address/YOUR_CONTRACT_ADDRESS
    - Base Mainnet: https://basescan.org/address/YOUR_CONTRACT_ADDRESS
+   - Arc: https://explorer.arc.io/address/YOUR_CONTRACT_ADDRESS
 
 4. **Test the deployment**:
    ```bash
@@ -150,6 +201,14 @@ forge test --match-test testDepositWithPermit -vvvv
 ### Base Sepolia (Testnet)
 - Airtime Contract: `TBD`
 - USDC Token: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
+
+### Arc Testnet
+- Airtime Contract: `TBD`
+- USDC Token: `0x3600000000000000000000000000000000000000`
+
+### Arc Mainnet
+- Airtime Contract: `TBD`
+- USDC Token: `0x3600000000000000000000000000000000000000`
 
 ### Base Mainnet (Production)
 - Airtime Contract: `0x...` (Update after deployment)

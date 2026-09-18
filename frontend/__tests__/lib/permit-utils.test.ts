@@ -9,7 +9,6 @@ import {
 // 64 hex chars of filler for r/s components
 const R = ('0x' + 'a'.repeat(64)) as `0x${string}`;
 const ZERO_64 = '0'.repeat(64);
-const ONES_64 = 'f'.repeat(64);
 
 // A valid standard 65-byte (130 hex char) sig: r(64) + s(64) + v(2) with v=1b (27)
 const SIG_V27 = 'a'.repeat(64) + 'b'.repeat(64) + '1b'; // 130 chars, v=0x1b=27
@@ -36,6 +35,10 @@ describe('normalizeV', () => {
   it('handles deeply embedded values recursively', () => {
     // 0x10000 & 0xff = 0 → normalizeV(0) → 27
     expect(normalizeV(0x10000)).toBe(27);
+  });
+
+  it('returns any other in-range value unchanged', () => {
+    expect(normalizeV(15)).toBe(15);
   });
 });
 
@@ -96,6 +99,14 @@ describe('parseStandard65Byte', () => {
 
   it('normalises v=0x01 to 28', () => {
     expect(parseStandard65Byte(SIG_V1, R).v).toBe(28);
+  });
+
+  it('falls back to the last two chars for v when the string has no byte 128-130 (128-char input)', () => {
+    // Exactly 128 chars: s.slice(128, 130) is '' (out of range), so the
+    // implementation falls back to s.slice(-2).
+    const s = 'a'.repeat(64) + 'b'.repeat(62) + '1b';
+    expect(s).toHaveLength(128);
+    expect(parseStandard65Byte(s, R).v).toBe(27);
   });
 });
 
@@ -163,5 +174,17 @@ describe('parseSignature', () => {
 
   it('throws on an empty signature', () => {
     expect(() => parseSignature('')).toThrow('Empty signature');
+  });
+
+  it('throws when normalisation yields an empty string (all-zero signature)', () => {
+    // Stripping leading/trailing zeros empties the string; the centre-slice
+    // fallback in normalizeSignature is itself all zeros, so it stays empty.
+    const allZeros = '0x' + '0'.repeat(200);
+    expect(() => parseSignature(allZeros)).toThrow('Invalid signature format');
+  });
+
+  it('throws on an all-zero signature with no 0x prefix (fallback branch without the prefix)', () => {
+    const allZeros = '0'.repeat(200);
+    expect(() => parseSignature(allZeros)).toThrow('Invalid signature format');
   });
 });

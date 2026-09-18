@@ -1,4 +1,4 @@
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, type Chain } from 'viem';
 import { base } from 'viem/chains';
 import { parseSignature } from './permit-utils';
 
@@ -12,7 +12,8 @@ export async function generatePermitSignature({
   value,
   deadline,
   walletClient,
-  chainId
+  chainId,
+  chain
 }: {
   tokenAddress: `0x${string}`;
   owner: `0x${string}`;
@@ -21,10 +22,12 @@ export async function generatePermitSignature({
   deadline: number;
   walletClient: { signTypedData: (params: { account: `0x${string}`; domain: Record<string, unknown>; types: Record<string, unknown>; primaryType: string; message: Record<string, unknown> }) => Promise<string>; };
   chainId: number;
+  /** viem chain to read the token contract from; defaults to Base for backwards compatibility. */
+  chain?: Chain;
 }) {
   try {
     const publicClient = createPublicClient({
-      chain: base,
+      chain: chain ?? base,
       transport: http()
     });
 

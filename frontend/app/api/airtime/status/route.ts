@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createPublicClient, createWalletClient, http, parseUnits } from 'viem'
-import { base } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
+import { getChainConfigById } from '@/lib/chains'
 
 const supabaseUrl = process.env.NEXT_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 const TREASURY_PRIVATE_KEY = process.env.TREASURY_PRIVATE_KEY as `0x${string}`
 
 // Use service key to bypass RLS for server-side operations
@@ -39,11 +38,15 @@ type OrderRow = {
   service_fee_usdc?: number | null;
   order_ref: string;
   wallet_address: string;
+  chain_id?: number;
 }
 
 async function executeRefund(order: OrderRow): Promise<string | undefined> {
-  if (!TREASURY_PRIVATE_KEY) {
-    console.error('Treasury private key not configured')
+  const chainConfig = getChainConfigById(order.chain_id)
+  const AIRTIME_CONTRACT_ADDRESS = chainConfig.airtimeContractAddress
+
+  if (!TREASURY_PRIVATE_KEY || !AIRTIME_CONTRACT_ADDRESS) {
+    console.error('Treasury private key or chain contract address not configured', { chainId: chainConfig.chain.id })
     await markOrderAsRefunded(String(order.id))
     throw new Error('Manual refund required')
   }
@@ -52,12 +55,12 @@ async function executeRefund(order: OrderRow): Promise<string | undefined> {
   const account = privateKeyToAccount(privateKey as `0x${string}`)
   const walletClient = createWalletClient({
     account,
-    chain: base,
+    chain: chainConfig.chain,
     transport: http()
   })
 
   const publicClient = createPublicClient({
-    chain: base,
+    chain: chainConfig.chain,
     transport: http()
   })
 

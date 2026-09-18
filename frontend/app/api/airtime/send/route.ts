@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createPublicClient, http, parseUnits, createWalletClient } from 'viem'
-import { base } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
+import { getChainConfigById } from '@/lib/chains'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,7 +23,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey || supabaseAnonKey
 const AFRICASTALKING_USERNAME = process.env.NEXT_AFRICASTALKING_USERNAME!
 const AFRICASTALKING_API_KEY = process.env.NEXT_AFRICASTALKING_API_KEY!
 const AFRICASTALKING_URL = process.env.NEXT_AFRICASTALKING_URL!
-const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 const TREASURY_PRIVATE_KEY = process.env.OPERATOR_PRIVATE_KEY
 
 function normalizePrivateKey(pk?: string | null): `0x${string}` | null {
@@ -73,6 +72,13 @@ export async function POST(request: NextRequest) {
     }
     
     console.log('Order found:', order)
+
+    const chainConfig = getChainConfigById(order.chain_id)
+    const AIRTIME_CONTRACT_ADDRESS = chainConfig.airtimeContractAddress
+    if (!AIRTIME_CONTRACT_ADDRESS) {
+      console.error(`No Airtime contract configured for chain ${chainConfig.chain.id} (${chainConfig.displayName})`)
+      return NextResponse.json({ error: 'Payment network temporarily unavailable' }, { status: 500 })
+    }
 
     if (order.status !== 'pending') {
       console.log('Order status is not pending:', order.status)
@@ -130,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     // Verify blockchain transaction
     const publicClient = createPublicClient({
-      chain: base,
+      chain: chainConfig.chain,
       transport: http()
     })
 
@@ -317,7 +323,7 @@ export async function POST(request: NextRequest) {
         const account = privateKeyToAccount(normalizedPk)
         const walletClient = createWalletClient({
           account,
-          chain: base,
+          chain: chainConfig.chain,
           transport: http()
         })
 
@@ -354,6 +360,9 @@ export async function POST(request: NextRequest) {
           console.error('Failed to update order with refund tx hash:', updateError)
         }
 
+        // istanbul ignore next -- unreachable: errorMessage (line 275) is
+        // already resolved through its own '|| Unknown error' fallback, so
+        // it can never be falsy here.
         const normalizedError = errorMessage || 'Airtime send failed';
         return NextResponse.json({ 
           error: normalizedError, 

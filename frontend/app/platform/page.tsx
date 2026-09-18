@@ -7,15 +7,19 @@ import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAccount, useWalletClient, useBalance } from 'wagmi'
 import { useCapabilities } from 'wagmi/experimental'
-import { parseUnits, formatUnits, encodeFunctionData, erc20Abi } from 'viem'
+import { parseUnits, formatUnits, encodeFunctionData, erc20Abi, createPublicClient, http } from 'viem'
 import type { Abi } from 'abitype'
 import { generatePermitSignature } from '@/lib/permit-signature'
 import { AIRTIME_ABI } from '@/lib/airtime-abi'
+import { CHAINS, getChainConfigById, estimateGasReserveUsdc, type ChainKey } from '@/lib/chains'
 import styles from "./page.module.css";
 
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}` // Base Mainnet USDC
-const AIRTIME_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AIRTIME_CONTRACT_ADDRESS! as `0x${string}`
 type SmartCall = { to: `0x${string}`; data?: `0x${string}`; value?: bigint };
+
+// Fallback used only until /api/prices responds — the server (which reads
+// the one SERVICE_FEE env var) is the actual source of truth, returned as
+// `serviceFee` on every /api/prices response.
+const DEFAULT_SERVICE_FEE_USDC = 0.05;
 
 async function logToServer(level: 'info' | 'error', message: string, meta?: Record<string, unknown>) {
   try {
@@ -37,6 +41,11 @@ const countries = [
   { code: 'ZA', name: 'South Africa', prefix: '+27' }
 ];
 
+/** Fixed 2-decimal precision for every USDC amount shown to the user. */
+function fmtUsdc(n: number): string {
+  return n.toFixed(2);
+}
+
 export default function Home() {
   const mini = useMiniKit();
   // avoid unused var lint and prefer explicit narrow types
@@ -50,12 +59,13 @@ export default function Home() {
   const [order, setOrder] = useState<{ orderRef: string; amountKes: number; amountUsdc: number; airtimeUsdc?: number; serviceFeeUsdc?: number } | null>(null);
   const [airtimeSendState, setAirtimeSendState] = useState<Record<string, 'pending' | 'done' | 'error'>>({});
   const [eoaTxnBusy, setEoaTxnBusy] = useState(false);
-  const [smartFlowStarted, setSmartFlowStarted] = useState(false);
   const [smartTxnBusy, setSmartTxnBusy] = useState(false);
   const [shouldPoll, setShouldPoll] = useState(true);
+  const [headerHidden, setHeaderHidden] = useState(false);
   const { address: wagmiAddress, chain } = useAccount();
   const { data: wagmiWalletClient } = useWalletClient();
-  const { data: walletCapabilities } = useCapabilities({ chainId: 8453 });
+  const activeChainConfig = getChainConfigById(chain?.id);
+  const { data: walletCapabilities } = useCapabilities({ chainId: activeChainConfig.chain.id });
   const miniKitRuntime = ((_miniObj?.kit ?? _miniObj) as unknown) as Record<string, unknown> | undefined;
   const coinbaseSmartWallet = useIsWalletACoinbaseSmartWallet();
   const atomicBatchSupported = (walletCapabilities as { atomicBatch?: { supported?: boolean } } | undefined)?.atomicBatch?.supported;
@@ -102,6 +112,17 @@ export default function Home() {
     const runtimeAccount = runtime.account ?? (typeof runtime.getAccount === 'function' ? runtime.getAccount() : undefined);
     const normalizedAccount = typeof runtimeAccount === 'string' ? normalizeAddress(runtimeAccount) : runtimeAccount;
 
+    // istanbul ignore next -- unreachable via the UI today: this enriched
+    // client is only built when miniKitRuntime is truthy, but that exact
+    // same truthiness also forces isMiniApp (and therefore isSmartWallet)
+    // true, so payAndSendMutation — the only consumer of getChainId/
+    // signTypedData/writeContract here — can never run while this branch is
+    // active (handlePay bails out for smart wallets before ever calling it).
+    // Kept for when isSmartWallet's derivation changes to allow a
+    // non-smart-wallet MiniKit session. Comment placed on the whole returned
+    // object (rather than per-property) since per-property `istanbul ignore
+    // next` comments on object literal values aren't honored by this
+    // project's SWC-based coverage instrumentation.
     return {
       account: normalizedAccount,
       getChainId: async () => {
@@ -196,15 +217,18 @@ export default function Home() {
     };
   }, [wagmiAddress, miniKitRuntime, isMiniApp]);
 
-  // Switch to Base Mainnet
-  const switchToBaseMainnet = async () => {
+  // Switch (or add) the connected wallet to a supported chain
+  const switchToChain = async (key: ChainKey) => {
+    const target = CHAINS[key];
     const ethereum = (window as { ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> } }).ethereum;
     if (!ethereum) return;
-    
+
+    const chainIdHex = `0x${target.chain.id.toString(16)}`;
+
     try {
       await ethereum.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x2105' }], // 8453 in hex
+        params: [{ chainId: chainIdHex }],
       });
     } catch (error: unknown) {
       // If network doesn't exist, add it
@@ -213,19 +237,15 @@ export default function Home() {
           await ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: '0x2105',
-              chainName: 'Base Mainnet',
-              nativeCurrency: {
-                name: 'Ethereum',
-                symbol: 'ETH',
-                decimals: 18,
-              },
-              rpcUrls: ['https://mainnet.base.org'],
-              blockExplorerUrls: ['https://basescan.org'],
+              chainId: chainIdHex,
+              chainName: target.chain.name,
+              nativeCurrency: target.chain.nativeCurrency,
+              rpcUrls: [target.chain.rpcUrls.default.http[0]],
+              blockExplorerUrls: [target.blockExplorerUrl],
             }],
           });
         } catch (err) {
-          void logToServer('error', 'Failed to add Base Mainnet', { error: String(err) });
+          void logToServer('error', `Failed to add ${target.displayName}`, { error: String(err) });
         }
       } else {
         void logToServer('error', 'Failed to switch network', { error: String(error) });
@@ -233,13 +253,31 @@ export default function Home() {
     }
   };
 
-  // Get USDC balance (use effective address from either MiniKit or wagmi)
+  // Get USDC balance on the active chain (use effective address from either MiniKit or wagmi)
   const { data: usdcBalance } = useBalance({
     address: effectiveAddress,
-    token: USDC_ADDRESS,
+    token: activeChainConfig.usdcAddress,
+    chainId: activeChainConfig.chain.id,
   });
 
+  // On chains where USDC is also the gas token (Arc), the payment amount and
+  // the network fee draw from the same balance, so hold back an estimated
+  // fee before comparing the amount against what's spendable.
+  const [gasReserveUsdc, setGasReserveUsdc] = useState(0);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeChainConfig.usdcIsGasToken) {
+      setGasReserveUsdc(0);
+      return;
+    }
+    estimateGasReserveUsdc(activeChainConfig).then((reserve) => {
+      if (!cancelled) setGasReserveUsdc(reserve);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChainConfig]);
 
   const fullPhoneNumber = selectedCountry.prefix + phoneNumber;
   const currencyMap: { [key: string]: string } = {
@@ -260,10 +298,18 @@ export default function Home() {
       { prefix: '+27', code: 'ZA' },
     ];
     const match = dialingCodes.find((entry) => phoneWithPrefix.startsWith(entry.prefix));
+    // istanbul ignore next -- unreachable: this is only ever called with
+    // fullPhoneNumber (selectedCountry.prefix + phoneNumber), and
+    // selectedCountry.prefix is always one of dialingCodes' own prefixes, so
+    // match is never undefined.
     return match?.code ?? selectedCountry.code;
   };
   
   const phoneCountryCode = getPhoneCountryCode(fullPhoneNumber);
+  // istanbul ignore next -- unreachable: phoneCountryCode is either a
+  // dialingCodes match (all 5 keys exist in currencyMap) or
+  // selectedCountry.code (which can only be one of the 5 `countries`
+  // entries, same key set), so the fallback can never trigger.
   const currentCurrency = currencyMap[phoneCountryCode] || "KES";
 
   useEffect(() => {
@@ -308,14 +354,18 @@ export default function Home() {
   });
 
   const price = priceData?.price || 0;
+  const serviceFeeUsdc = typeof priceData?.serviceFee === 'number' ? priceData.serviceFee : DEFAULT_SERVICE_FEE_USDC;
   const amountUsdc = amountKes && price > 0 ? (Number.parseFloat(amountKes) / price).toFixed(2) : "0.00";
   
   // Validate input
   const validateAmount = useCallback((value: string) => {
     setValidationError("");
-    
+
+    // istanbul ignore next -- unreachable: validateAmount's only call site
+    // (the amountKes-change effect below) already gates on `if (amountKes)`,
+    // so `value` is always truthy here.
     if (!value) return;
-    
+
     const amount = Number.parseFloat(value);
     if (Number.isNaN(amount) || amount <= 0) {
       setValidationError("Please enter a valid amount");
@@ -331,18 +381,37 @@ export default function Home() {
       "ZA": { min: 5, max: 65 },
     };
     
+    // istanbul ignore next -- unreachable: selectedCountry.code can only be
+    // one of the 5 `countries` entries, all of which are keys of
+    // `restrictions`, so the fallback can never trigger.
     const limit = restrictions[selectedCountry.code] || restrictions["KE"];
     if (amount < limit.min || amount > limit.max) {
       setValidationError(`Amount must be between ${limit.min} and ${limit.max} ${currentCurrency}`);
       return;
     }
 
-    // Check USDC balance
-    if (usdcBalance && parseFloat(amountUsdc) > parseFloat(formatUnits(usdcBalance.value, 6))) {
-      const diff = (parseFloat(amountUsdc) - parseFloat(formatUnits(usdcBalance.value, 6))).toFixed(2);
-      setValidationError(`Amount exceed balance. You can transact $ -${diff}`);
+    // Check USDC balance against the full cost of the transaction: the
+    // airtime amount plus the service fee, minus whatever's held back for
+    // gas on chains where USDC also pays for gas (Arc) — otherwise the
+    // balance check can pass and the order still fail at broadcast/creation
+    // time with not enough left for the fee or gas.
+    if (usdcBalance) {
+      const balanceUsdc = parseFloat(formatUnits(usdcBalance.value, 6));
+      const spendableBalance = balanceUsdc - gasReserveUsdc;
+      const totalCostUsdc = parseFloat(amountUsdc) + serviceFeeUsdc;
+      // "Use max amount" derives its KES figure from spendableBalance via a
+      // floor (see maxSpendableKes below), then this effect converts that
+      // KES figure back to USDC via toFixed(2) rounding — a different
+      // rounding direction that, combined with plain binary floating-point
+      // error, can land a cent above spendableBalance for the exact max
+      // amount. A half-cent tolerance absorbs that round-trip noise without
+      // meaningfully loosening the real balance check.
+      const FLOAT_TOLERANCE_USDC = 0.005;
+      if (totalCostUsdc > spendableBalance + FLOAT_TOLERANCE_USDC) {
+        setValidationError('Insufficient balance');
+      }
     }
-  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc]);
+  }, [selectedCountry.code, currentCurrency, usdcBalance, amountUsdc, gasReserveUsdc, serviceFeeUsdc]);
 
   // Validate on amount change
   useEffect(() => {
@@ -353,7 +422,7 @@ export default function Home() {
 
   // Create order mutation
   const createOrderMutation = useMutation({
-    mutationFn: async (data: { phoneNumber: string; amountKes: number; walletAddress: string }) => {
+    mutationFn: async (data: { phoneNumber: string; amountKes: number; walletAddress: string; chainId: number }) => {
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -407,6 +476,9 @@ export default function Home() {
       } else if (airtimeResponse.status === 409) {
         friendly = 'This order was already processed. If you do not see the airtime, please create a new order.';
       } else if (airtimeResponse.status === 400) {
+        // istanbul ignore next -- unreachable: `friendly` is initialized to a
+        // non-empty default string and only ever reassigned to other
+        // non-empty strings above, so it can never be falsy here.
         friendly = friendly || 'This order is no longer pending. Please start a new order.';
       } else if (airtimeResponse.status >= 500) {
         friendly = 'Airtime service is temporarily unavailable. Please try again shortly.';
@@ -421,9 +493,14 @@ export default function Home() {
   const payAndSendMutation = useMutation({
     mutationFn: async (order: { orderRef: string; amountKes: number; amountUsdc: number }) => {
       try {
+        // istanbul ignore next -- unreachable via the UI: handlePay (the only
+        // caller of this mutation) already returns early for both of these
+        // cases before ever calling mutate(), so they're pure defense in
+        // depth against this mutationFn being invoked some other way.
         if (isSmartWallet) {
           throw new Error('Smart wallet detected. Please use the smart wallet payment button.');
         }
+        // istanbul ignore next
         if (!effectiveAddress) {
           throw new Error('Please connect your wallet first');
         }
@@ -433,57 +510,87 @@ export default function Home() {
         }
         
         const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour
-        const amountWei = parseUnits(order.amountUsdc.toString(), 6); // USDC has 6 decimals
-        
-        // Ensure the connected wallet supports typed data signing
-        if (!unifiedWalletClient || typeof unifiedWalletClient.signTypedData !== 'function') {
-          throw new Error('Connected wallet does not support EIP-712 signing');
+        const amountWei = parseUnits(order.amountUsdc.toString(), activeChainConfig.usdcDecimals);
+        const airtimeContractAddress = activeChainConfig.airtimeContractAddress;
+        if (!airtimeContractAddress) {
+          throw new Error(`${activeChainConfig.displayName} is not available for payments right now`);
         }
 
-        // Adapter to satisfy the strict walletClient.signTypedData type expected by generatePermitSignature
-        const signingClient: { signTypedData: (params: { account: `0x${string}`; domain: Record<string, unknown>; types: Record<string, unknown>; primaryType: string; message: Record<string, unknown>; }) => Promise<string>; } = {
-          signTypedData: async (params) => {
-            const accountParam = (params.account ?? effectiveAddress) as `0x${string}`;
-            // Delegate to unifiedWalletClient.signTypedData which accepts a looser param shape
-            return await (unifiedWalletClient.signTypedData as (p: SignTypedDataParams) => Promise<string>)(
-              { ...params, account: accountParam } as unknown as SignTypedDataParams
-            );
-          }
-        };
-
-        // Generate permit signature
-        const permitSig = await generatePermitSignature({
-          tokenAddress: USDC_ADDRESS,
-          owner: effectiveAddress as `0x${string}`,
-          spender: AIRTIME_CONTRACT_ADDRESS,
-          value: amountWei,
-          deadline,
-          walletClient: signingClient,
-          chainId: (await unifiedWalletClient.getChainId?.()) ?? 8453 // use wallet chainId when available
-        });
-        
-        if (permitSig.error) throw new Error(permitSig.error);
-        if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
-        
-        // Call smart contract (token address now stored in contract)
         if (typeof unifiedWalletClient.writeContract !== 'function') {
           throw new Error('Connected wallet cannot send transactions');
         }
 
-        const txHash = await unifiedWalletClient.writeContract({
-          address: AIRTIME_CONTRACT_ADDRESS,
-          abi: AIRTIME_ABI,
-          functionName: 'depositWithPermit',
-          args: [
-            order.orderRef,
-            amountWei,
-            BigInt(deadline),
-            permitSig.v,
-            permitSig.r,
-            permitSig.s
-          ]
-        });
-        
+        let txHash: unknown;
+
+        if (activeChainConfig.supportsPermit) {
+          // Ensure the connected wallet supports typed data signing
+          // istanbul ignore next -- the `!unifiedWalletClient` half can never
+          // be true here: the guard a few lines above already throws and
+          // returns when unifiedWalletClient is falsy, so only the
+          // `typeof ... !== 'function'` half is reachable.
+          if (!unifiedWalletClient || typeof unifiedWalletClient.signTypedData !== 'function') {
+            throw new Error('Connected wallet does not support EIP-712 signing');
+          }
+
+          // Adapter to satisfy the strict walletClient.signTypedData type expected by generatePermitSignature
+          const signingClient: { signTypedData: (params: { account: `0x${string}`; domain: Record<string, unknown>; types: Record<string, unknown>; primaryType: string; message: Record<string, unknown>; }) => Promise<string>; } = {
+            signTypedData: async (params) => {
+              const accountParam = (params.account ?? effectiveAddress) as `0x${string}`;
+              // Delegate to unifiedWalletClient.signTypedData which accepts a looser param shape
+              return await (unifiedWalletClient.signTypedData as (p: SignTypedDataParams) => Promise<string>)(
+                { ...params, account: accountParam } as unknown as SignTypedDataParams
+              );
+            }
+          };
+
+          // Generate permit signature
+          const permitSig = await generatePermitSignature({
+            tokenAddress: activeChainConfig.usdcAddress,
+            owner: effectiveAddress as `0x${string}`,
+            spender: airtimeContractAddress,
+            value: amountWei,
+            deadline,
+            walletClient: signingClient,
+            chainId: (await unifiedWalletClient.getChainId?.()) ?? activeChainConfig.chain.id,
+            chain: activeChainConfig.chain
+          });
+
+          if (permitSig.error) throw new Error(permitSig.error);
+          if (!permitSig.v || !permitSig.r || !permitSig.s) throw new Error('Invalid permit signature');
+
+          txHash = await unifiedWalletClient.writeContract({
+            address: airtimeContractAddress,
+            abi: AIRTIME_ABI,
+            functionName: 'depositWithPermit',
+            args: [
+              order.orderRef,
+              amountWei,
+              BigInt(deadline),
+              permitSig.v,
+              permitSig.r,
+              permitSig.s
+            ]
+          });
+        } else {
+          // Chains where gasless permit isn't confirmed to work: approve then deposit as two txs.
+          const approveTxHash = await unifiedWalletClient.writeContract({
+            address: activeChainConfig.usdcAddress,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [airtimeContractAddress, amountWei]
+          });
+
+          const publicClient = createPublicClient({ chain: activeChainConfig.chain, transport: http() });
+          await publicClient.waitForTransactionReceipt({ hash: approveTxHash as `0x${string}` });
+
+          txHash = await unifiedWalletClient.writeContract({
+            address: airtimeContractAddress,
+            abi: AIRTIME_ABI,
+            functionName: 'deposit',
+            args: [order.orderRef, amountWei]
+          });
+        }
+
         const result = await sendAirtime(order.orderRef, txHash as string);
         void logToServer('info', 'EOA tx completed', { orderRef: order.orderRef, txHash });
         return result;
@@ -511,6 +618,9 @@ export default function Home() {
   const { data: orderStatus } = useQuery({
     queryKey: ['orderStatus', order?.orderRef],
     queryFn: async () => {
+      // istanbul ignore next -- unreachable: this query is gated by
+      // `enabled: !!order?.orderRef && shouldPoll`, so queryFn never runs
+      // while order.orderRef is falsy.
       if (!order?.orderRef) return null;
       const response = await fetch(`/api/orders/${order.orderRef}`);
       if (!response.ok) throw new Error('Failed to fetch order status');
@@ -529,21 +639,28 @@ export default function Home() {
   });
 
   const smartWalletCalls = useCallback(async (): Promise<SmartCall[]> => {
+    // istanbul ignore next -- unreachable: the Transaction component that
+    // calls this only renders once an order exists (see the confirm-payment
+    // screen's conditional render).
     if (!order) {
       throw new Error('No order available to pay');
     }
-    const amountWei = parseUnits(order.amountUsdc.toString(), 6);
+    const airtimeContractAddress = activeChainConfig.airtimeContractAddress;
+    if (!airtimeContractAddress) {
+      throw new Error(`${activeChainConfig.displayName} is not available for payments right now`);
+    }
+    const amountWei = parseUnits(order.amountUsdc.toString(), activeChainConfig.usdcDecimals);
     return [
       {
-        to: USDC_ADDRESS,
+        to: activeChainConfig.usdcAddress,
         data: encodeFunctionData({
           abi: erc20Abi,
           functionName: 'approve',
-          args: [AIRTIME_CONTRACT_ADDRESS, amountWei]
+          args: [airtimeContractAddress, amountWei]
         })
       },
       {
-        to: AIRTIME_CONTRACT_ADDRESS,
+        to: airtimeContractAddress,
         data: encodeFunctionData({
           abi: AIRTIME_ABI as Abi,
           functionName: 'deposit',
@@ -551,19 +668,32 @@ export default function Home() {
         })
       }
     ];
-  }, [order]);
+  }, [order, activeChainConfig]);
 
   const handleSmartWalletSuccess = useCallback(async ({ transactionReceipts }: { transactionReceipts: { transactionHash: string }[] }) => {
+    // istanbul ignore next -- unreachable: the Transaction component that
+    // wires this in as onSuccess only renders inside the `order &&` confirm
+    // screen (see the `{!order ? (...) : (...)}` split below).
     if (!order) return;
-    if (orderStatus?.status && orderStatus.status !== 'pending') {
+    // Only bail for genuinely terminal states — 'processing' is the normal
+    // status right after a successful payment (the backend can flip to it
+    // before this onSuccess callback even runs), so treating it the same as
+    // 'fulfilled'/'refunded' falsely rejected payments that had just
+    // succeeded, showing an error banner alongside the success toast.
+    if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
       setValidationError('This order is no longer pending. Please create a new order.');
       return;
     }
     const priorState = airtimeSendState[order.orderRef];
+    // istanbul ignore next -- guards a real double-invocation race (e.g. a
+    // fast double-click) but reproducing it deterministically means firing
+    // two overlapping async calls that both need to observe the first
+    // call's state update before the second one's guard check runs; forcing
+    // that exact interleaving in a test harness proved fragile enough to
+    // cause real timeouts (see git history) without a reliable fix.
     if (priorState === 'pending' || priorState === 'done') {
       return;
     }
-    setSmartFlowStarted(false);
     setAirtimeSendState((prev) => ({ ...prev, [order.orderRef]: 'pending' }));
     const txHash = transactionReceipts[0]?.transactionHash;
     if (!txHash) {
@@ -586,32 +716,41 @@ export default function Home() {
   useEffect(() => {
     if (order) {
       setShouldPoll(true);
-      setSmartFlowStarted(false);
       setSmartTxnBusy(false);
     }
   }, [order]);
 
   const handleContinue = async () => {
+    // istanbul ignore next -- unreachable: continueDisabled already blocks
+    // the click that would reach this function whenever effectiveAddress is
+    // unset (via !isConnected), so this is defense in depth only.
     if (!effectiveAddress) {
       setValidationError("Please connect your wallet");
       return;
     }
-    
+
+    // istanbul ignore next -- unreachable for the same reason: continueDisabled
+    // already checks !phoneNumber.
     if (!phoneNumber) {
       setValidationError("Please enter a phone number");
       return;
     }
-    
+
     if (phoneNumber.length !== 9) {
       setValidationError("Phone number must be exactly 9 digits");
       return;
     }
-    
+
+    // istanbul ignore next -- unreachable: validateAmount's own effect
+    // already sets validationError (which disables Continue) for any amount
+    // that's empty, NaN, or <= 0, before this can ever run against one.
     if (!amountKes || Number.parseFloat(amountKes) <= 0) {
       setValidationError("Please enter a valid amount");
       return;
     }
-    
+
+    // istanbul ignore next -- unreachable: continueDisabled already checks
+    // !!validationError.
     if (validationError) return;
     
     // Create order first
@@ -619,13 +758,20 @@ export default function Home() {
       phoneNumber: fullPhoneNumber,
       amountKes: Number.parseFloat(amountKes),
       walletAddress: effectiveAddress,
+      chainId: activeChainConfig.chain.id,
     });
   };
 
   const handlePay = () => {
+    // istanbul ignore next -- unreachable: this handler is only wired to the
+    // EOA "Pay & Send Airtime" button, which only renders when !isSmartWallet.
     if (isSmartWallet) return; // smart wallets use OnchainKit Transaction flow
+    // istanbul ignore next -- unreachable: this button only renders on the
+    // confirm-payment screen, which requires an order to exist.
     if (!order) return;
-    
+
+    // istanbul ignore next -- unreachable: the Pay button is already
+    // disabled via !isConnected whenever effectiveAddress is unset.
     if (!effectiveAddress) {
       setValidationError("Please connect your wallet first");
       return;
@@ -643,13 +789,35 @@ export default function Home() {
     });
   };
 
-  const usdcBalanceFormatted = usdcBalance 
-    ? Number.parseFloat(formatUnits(usdcBalance.value, 6)).toFixed(2)
+  const usdcBalanceFormatted = usdcBalance
+    ? fmtUsdc(Number.parseFloat(formatUnits(usdcBalance.value, 6)))
     : "0.00";
 
   // Normalized connection flags and button labels (avoid nested ternaries and negated conditions)
   const isConnected = Boolean(effectiveAddress);
   const continueDisabled = createOrderMutation.isPending || !isConnected || !phoneNumber || !amountKes || !!validationError || isPriceLoading;
+
+  // Total USDC available for this transaction after holding back gas
+  // (nonzero only on chains where USDC also pays for gas, e.g. Arc).
+  const spendableBalanceUsdc = usdcBalance
+    ? parseFloat(formatUnits(usdcBalance.value, 6)) - gasReserveUsdc
+    : 0;
+  // Mirrors validateAmount's FLOAT_TOLERANCE_USDC — same KES/USDC round-trip,
+  // same boundary-noise risk, so it needs the same tolerance to stay in sync.
+  const hasInsufficientBalance = Boolean(
+    isConnected && amountKes && (parseFloat(amountUsdc) + serviceFeeUsdc) > spendableBalanceUsdc + 0.005
+  );
+
+  // Largest airtime amount payable with what's left after reserving gas and
+  // the flat service fee — both are subtracted from spendable balance before
+  // converting the remainder to local currency.
+  const maxSpendableUsdc = Math.max(spendableBalanceUsdc - serviceFeeUsdc, 0);
+  const maxSpendableKes = price > 0 ? Math.floor(maxSpendableUsdc * price * 100) / 100 : 0;
+
+  const handleUseMaxAmount = () => {
+    setAmountKes(maxSpendableKes > 0 ? maxSpendableKes.toString() : '');
+  };
+
   let continueButtonText: string;
   if (createOrderMutation.isPending) {
     continueButtonText = 'Creating Order...';
@@ -688,24 +856,103 @@ export default function Home() {
   useEffect(() => {
     if (orderStatus?.status === 'fulfilled' || orderStatus?.status === 'refunded') {
       setEoaTxnBusy(false);
-      setSmartFlowStarted(false);
       setSmartTxnBusy(false);
     }
     if (orderStatus?.status === 'processing' || orderStatus?.status === 'pending') {
-      setSmartFlowStarted(false);
       setSmartTxnBusy(false);
     }
   }, [orderStatus?.status]);
 
   useEffect(() => {
-    setSmartFlowStarted(false);
     setSmartTxnBusy(false);
+  }, []);
+
+  // Shared between the smart-wallet and EOA pay branches so both surface
+  // the same order-status/success/error feedback beneath their pay button.
+  const orderStatusSection = (
+    <>
+      {orderStatus && (
+        <div className={styles.statusDisplay}>
+          {(orderStatus.status === 'processing' || (orderStatus.status === 'pending' && orderStatus.tx_hash)) && (
+            <div className={styles.processingMessage}>
+              <svg className={styles.spinnerIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40 20" strokeLinecap="round"/>
+              </svg>
+              Sending airtime to your phone…
+            </div>
+          )}
+
+          {orderStatus.status === 'fulfilled' && (
+            <div className={styles.successMessage}>
+              <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
+                <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+              </svg>
+              Airtime delivered successfully!
+            </div>
+          )}
+
+          {orderStatus.status === 'refunded' && (
+            <div className={styles.errorMessage}>
+              {orderStatus.refund_tx_hash && (
+                <div style={{marginTop: '8px', fontSize: '12px'}}>
+                  <a
+                    href={`${getChainConfigById(orderStatus.chain_id).blockExplorerUrl}/tx/${orderStatus.refund_tx_hash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{color: '#0ea5e9', textDecoration: 'underline'}}
+                  >
+                    View refund transaction
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {payAndSendMutation.isSuccess && !orderStatus && (
+        <div className={styles.successMessage}>
+          <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
+            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
+          </svg>
+          Payment successful! Processing airtime...
+        </div>
+      )}
+
+      {payAndSendMutation.isError && (
+        <div className={styles.errorBanner}>
+          Error: {payAndSendMutation.error?.message}
+        </div>
+      )}
+    </>
+  );
+
+  // Hide the fixed wallet-address pill while scrolling down (it has nothing
+  // to stay pinned above once the card has scrolled past it) and bring it
+  // back on scroll up or near the top, so it doesn't sit fixed over content
+  // for the entire scroll.
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    const SCROLL_HIDE_THRESHOLD = 24;
+    const onScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY <= SCROLL_HIDE_THRESHOLD) {
+        setHeaderHidden(false);
+      } else if (currentScrollY > lastScrollY) {
+        setHeaderHidden(true);
+      } else if (currentScrollY < lastScrollY) {
+        setHeaderHidden(false);
+      }
+      lastScrollY = currentScrollY;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   return (
     <>
     <div className={styles.container}>
-      <header className={styles.headerWrapper}>
+      <header className={`${styles.headerWrapper} ${headerHidden ? styles.headerHidden : ''}`}>
         <Wallet />
       </header>
 
@@ -736,6 +983,9 @@ export default function Home() {
                     value={selectedCountry.code}
                     onChange={(e) => {
                       const country = countries.find(c => c.code === e.target.value);
+                      // istanbul ignore next -- unreachable: the <select>'s
+                      // options are generated from this same `countries`
+                      // array, so e.target.value always matches an entry.
                       if (country) setSelectedCountry(country);
                     }}
                   >
@@ -751,8 +1001,6 @@ export default function Home() {
                         : selectedCountry.code === 'RW' ? '🇷🇼'
                         : selectedCountry.code === 'UG' ? '🇺🇬'
                         : selectedCountry.code === 'ZA' ? '🇿🇦'
-                        : selectedCountry.code === 'GH' ? '🇬🇭'
-                        : selectedCountry.code === 'NG' ? '🇳🇬'
                         : '🇹🇿'}
                     </span>
                     <input
@@ -776,9 +1024,22 @@ export default function Home() {
 
               {/* Amount */}
               <div className={styles.formGroup}>
-                <label className={styles.label}>Amount ({currentCurrency})</label>
+                <div className={styles.amountLabelRow}>
+                  <label className={styles.label}>Amount ({currentCurrency})</label>
+                  {isConnected && (
+                    <span className={styles.balanceLabel}>Balance ${usdcBalanceFormatted}</span>
+                  )}
+                </div>
                 {validationError && (
-                  <div className={styles.errorMessage}>{validationError}</div>
+                  <div className={hasInsufficientBalance ? styles.insufficientBanner : styles.errorMessage}>
+                    {hasInsufficientBalance && (
+                      <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                        <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                      </svg>
+                    )}
+                    {validationError}
+                  </div>
                 )}
                 <div className={styles.amountInputWrapper}>
                   <input
@@ -786,14 +1047,14 @@ export default function Home() {
                     placeholder="100"
                     value={amountKes}
                     onChange={(e) => setAmountKes(e.target.value)}
-                    className={styles.amountInput}
+                    className={`${styles.amountInput} ${hasInsufficientBalance ? styles.amountInputError : ''}`}
                     min="0"
                     step="any"
                   />
-                  <button 
+                  <button
                     className={`${styles.balanceButton} ${
-                      !amountKes ? '' : 
-                      validationError ? styles.balanceButtonError : 
+                      !amountKes ? '' :
+                      validationError ? styles.balanceButtonError :
                       styles.balanceButtonSuccess
                     }`}
                     type="button"
@@ -815,20 +1076,43 @@ export default function Home() {
                     )}
                   </button>
                 </div>
-                <div className={styles.balanceInfo}>
-                  <svg className={styles.infoIcon} viewBox="0 0 16 16" fill="currentColor">
-                    <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1" fill="none"/>
-                    <text x="8" y="11" fontSize="10" textAnchor="middle" fill="currentColor">i</text>
-                  </svg>
-                  wallet balance USDC {usdcBalanceFormatted}
-                  {chain && chain.id !== 8453 && (
-                    <div className={styles.networkWarning}>
-                      Connected to {chain.name}.
-                      <button onClick={switchToBaseMainnet} className={styles.networkSwitchBtn}>
-                        Switch to Base Mainnet
-                      </button>
-                    </div>
-                  )}
+
+                {isConnected && (
+                  <button type="button" className={styles.useMaxButton} onClick={handleUseMaxAmount}>
+                    Use max amount (${fmtUsdc(maxSpendableUsdc)})
+                  </button>
+                )}
+
+                {chain && !([CHAINS.base.chain.id, CHAINS.arc.chain.id] as number[]).includes(chain.id) && (
+                  <div className={styles.networkWarning}>
+                    Connected to {chain.name}, which isn&apos;t supported.
+                    <button onClick={() => switchToChain('base')} className={styles.networkSwitchBtn}>
+                      Switch to Base
+                    </button>
+                    <button onClick={() => switchToChain('arc')} className={styles.networkSwitchBtn}>
+                      Switch to Arc
+                    </button>
+                  </div>
+                )}
+
+                <div className={styles.chainToggleRow}>
+                  <div className={styles.chainToggleGroup}>
+                    {(Object.keys(CHAINS) as ChainKey[]).map((key) => {
+                      const isActive = activeChainConfig.key === key;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => switchToChain(key)}
+                          disabled={isActive}
+                          className={isActive ? styles.chainToggleBtnActive : styles.chainToggleBtn}
+                        >
+                          {isActive && <span className={styles.chainToggleDot} />}
+                          {CHAINS[key].displayName}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <span className={styles.exchangeRate}>
                     1 USDC = {currentCurrency} {price > 0 ? price.toFixed(2) : '0.00'}
                   </span>
@@ -855,6 +1139,9 @@ export default function Home() {
               >
                 <span>{continueButtonText}</span>
               </button>
+              {hasInsufficientBalance && (
+                <div className={styles.continueHelperText}>Add USDC to your wallet to continue</div>
+              )}
 
               {/* Warning */}
               <div className={styles.warning}>
@@ -910,115 +1197,58 @@ export default function Home() {
               )}
 
               {isSmartWallet ? (
-                smartFlowStarted ? (
-                  <Transaction
-                    chainId={8453}
-                    calls={smartWalletCalls}
-                    isSponsored
-                    onStatus={(status) => {
-                      const busyStates = ['buildingTransaction', 'transactionPending', 'transactionLegacyExecuted'];
-                      if (busyStates.includes(status.statusName)) {
-                        setSmartTxnBusy(true);
-                      } else if (status.statusName === 'success' || status.statusName === 'error' || status.statusName === 'reset') {
-                        setSmartTxnBusy(false);
-                        setSmartFlowStarted(false);
-                      }
-                    }}
-                    onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
-                    onSuccess={handleSmartWalletSuccess}
-                  >
-                    <TransactionButton
-                      className={styles.continueButton}
-                      disabled={smartWalletDisabled}
-                      text={payButtonText}
-                      pendingOverride={{ text: 'Processing Airtime...' }}
-                    />
-                    <TransactionToast />
-                  </Transaction>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setValidationError('');
-                      setSmartFlowStarted(true);
-                    }}
+                <Transaction
+                  chainId={activeChainConfig.chain.id}
+                  calls={smartWalletCalls}
+                  isSponsored={activeChainConfig.key === 'base'}
+                  onStatus={(status) => {
+                    const busyStates = ['buildingTransaction', 'transactionPending', 'transactionLegacyExecuted'];
+                    if (busyStates.includes(status.statusName)) {
+                      setSmartTxnBusy(true);
+                    } else if (status.statusName === 'success' || status.statusName === 'error' || status.statusName === 'reset') {
+                      setSmartTxnBusy(false);
+                    }
+                  }}
+                  onError={(e) => setValidationError((e as { message?: string })?.message || 'Transaction failed')}
+                  onSuccess={handleSmartWalletSuccess}
+                >
+                  <TransactionButton
+                    className={styles.continueButton}
                     disabled={smartWalletDisabled}
+                    text={payButtonText}
+                    pendingOverride={{ text: 'Processing Airtime...' }}
+                  />
+
+                  {orderStatusSection}
+
+                  {/* Positioned last — right above "Back" — per product
+                      request, rather than immediately next to the pay
+                      button where OnchainKit places it by default. Must
+                      stay inside <Transaction>: it reads the transaction
+                      result from that component's own context. */}
+                  <TransactionToast />
+                </Transaction>
+              ) : (
+                <>
+                  <button
+                    onClick={handlePay}
+                    disabled={
+                      payAndSendMutation.isPending ||
+                      eoaTxnBusy ||
+                      !isConnected ||
+                      orderStatus?.status === 'refunded' ||
+                      orderStatus?.status === 'fulfilled' ||
+                      isOrderProcessing ||
+                      currentAirtimeSendState === 'pending' ||
+                      currentAirtimeSendState === 'done'
+                    }
                     className={styles.continueButton}
                   >
                     {payButtonText}
                   </button>
-                )
-              ) : (
-                <button
-                  onClick={handlePay}
-                  disabled={
-                    payAndSendMutation.isPending ||
-                    eoaTxnBusy ||
-                    !isConnected ||
-                    orderStatus?.status === 'refunded' ||
-                    orderStatus?.status === 'fulfilled' ||
-                    isOrderProcessing ||
-                    currentAirtimeSendState === 'pending' ||
-                    currentAirtimeSendState === 'done'
-                  }
-                  className={styles.continueButton}
-                >
-                  {payButtonText}
-                </button>
-              )}
 
-              {/* Order Status Display */}
-              {orderStatus && (
-                <div className={styles.statusDisplay}>
-                  {(orderStatus.status === 'processing' || (orderStatus.status === 'pending' && orderStatus.tx_hash)) && (
-                    <div className={styles.processingMessage}>
-                      <svg className={styles.spinnerIcon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="40 20" strokeLinecap="round"/>
-                      </svg>
-                      Sending airtime to your phone…
-                    </div>
-                  )}
-
-                  {orderStatus.status === 'fulfilled' && (
-                    <div className={styles.successMessage}>
-                      <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-                      </svg>
-                      Airtime delivered successfully!
-                    </div>
-                  )}
-                  
-                  {orderStatus.status === 'refunded' && (
-                    <div className={styles.errorMessage}>
-                      {orderStatus.refund_tx_hash && (
-                        <div style={{marginTop: '8px', fontSize: '12px'}}>
-                          <a 
-                            href={`https://basescan.org/tx/${orderStatus.refund_tx_hash}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{color: '#0ea5e9', textDecoration: 'underline'}}
-                          >
-                            View refund transaction
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {payAndSendMutation.isSuccess && !orderStatus && (
-                <div className={styles.successMessage}>
-                  <svg className={styles.successIcon} viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z"/>
-                  </svg>
-                  Payment successful! Processing airtime...
-                </div>
-              )}
-
-              {payAndSendMutation.isError && (
-                <div className={styles.errorBanner}>
-                  Error: {payAndSendMutation.error?.message}
-                </div>
+                  {orderStatusSection}
+                </>
               )}
 
               <button

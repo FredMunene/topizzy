@@ -2,6 +2,10 @@
 
 This document provides an overview of the project's architecture, logic flow, and API endpoints.
 
+## Infrastructure Accounts
+
+- **Supabase** — project account is under `munenegitonga99@gmail.com`.
+
 ## Database Schema
 
 ### `orders`
