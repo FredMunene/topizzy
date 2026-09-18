@@ -41,6 +41,20 @@ const countries = [
   { code: 'ZA', name: 'South Africa', prefix: '+27' }
 ];
 
+/**
+ * Phone input: accepts the number with or without the local leading 0
+ * (743913802 or 0743913802). A leading 0 is kept while typing and only
+ * stripped once the 10th digit arrives, so the field never jumps under the
+ * user's fingers; anything else is capped at 9 digits.
+ */
+function normalizePhoneInput(raw: string): string {
+  const digits = raw.replaceAll(/\D/g, '');
+  if (digits.startsWith('0')) {
+    return digits.length >= 10 ? digits.slice(1, 10) : digits;
+  }
+  return digits.slice(0, 9);
+}
+
 /** Fixed 2-decimal precision for every USDC amount shown to the user. */
 function fmtUsdc(n: number): string {
   return n.toFixed(2);
@@ -732,8 +746,10 @@ export default function Home() {
       return;
     }
 
-    if (phoneNumber.length !== 9) {
-      setValidationError("Phone number must be exactly 9 digits");
+    // Still starting with 0 means the 10th digit hasn't arrived yet (that's
+    // when the 0 is stripped), so it isn't a complete number either.
+    if (phoneNumber.length !== 9 || phoneNumber.startsWith('0')) {
+      setValidationError("Enter a 9-digit number, like 743913802 or 0743913802");
       return;
     }
 
@@ -1014,9 +1030,9 @@ export default function Home() {
                       type="tel"
                       placeholder="743913802"
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
+                      onChange={(e) => setPhoneNumber(normalizePhoneInput(e.target.value))}
                       className={styles.phoneInput}
-                      maxLength={9}
+                      maxLength={10}
                     />
                   </div>
                 </div>

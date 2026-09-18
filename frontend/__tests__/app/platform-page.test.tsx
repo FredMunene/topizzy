@@ -318,6 +318,65 @@ describe('Platform page', () => {
       expect(continueBtn.closest('button')).toBeDisabled();
     });
 
+    describe('phone number entry', () => {
+      const typePhone = (value: string) => {
+        const input = screen.getByPlaceholderText('743913802') as HTMLInputElement;
+        fireEvent.change(input, { target: { value } });
+        return input;
+      };
+
+      it('accepts a number without the leading 0 as typed', () => {
+        renderPlatform();
+        expect(typePhone('743913802').value).toBe('743913802');
+      });
+
+      it('keeps a leading 0 while typing, up to 9 digits', () => {
+        renderPlatform();
+        expect(typePhone('07439').value).toBe('07439');
+        expect(typePhone('074391380').value).toBe('074391380');
+      });
+
+      it('strips the leading 0 once the 10th digit arrives', () => {
+        renderPlatform();
+        expect(typePhone('0743913802').value).toBe('743913802');
+      });
+
+      it('truncates anything longer than the 10 digits it can use', () => {
+        renderPlatform();
+        expect(typePhone('07439138021234').value).toBe('743913802');
+        expect(typePhone('74391380299').value).toBe('743913802');
+      });
+
+      it('ignores non-digit characters', () => {
+        renderPlatform();
+        expect(typePhone('0743-913 802').value).toBe('743913802');
+      });
+
+      it('allows the 10th digit to be typed (maxLength is 10)', () => {
+        renderPlatform();
+        expect(screen.getByPlaceholderText('743913802')).toHaveAttribute('maxLength', '10');
+      });
+
+      it('does not treat a 9-character entry that still starts with 0 as complete', async () => {
+        renderPlatform();
+        typePhone('074391380');
+        fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+        await waitFor(() => expect(getContinueButton()).not.toBeDisabled());
+        fireEvent.click(getContinueButton());
+        expect(await screen.findByText('Enter a 9-digit number, like 743913802 or 0743913802')).toBeInTheDocument();
+      });
+
+      it('creates the order with the stripped number when typed with a leading 0', async () => {
+        renderPlatform();
+        typePhone('0743913802');
+        fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+        await clickContinueWhenEnabled();
+        await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/orders', expect.objectContaining({
+          body: expect.stringContaining('"phoneNumber":"+254743913802"'),
+        })));
+      });
+    });
+
     it('shows an error for a phone number that is not 9 digits', async () => {
       renderPlatform();
       const phoneInput = screen.getByPlaceholderText('743913802');
@@ -325,7 +384,7 @@ describe('Platform page', () => {
       const amountInput = screen.getByPlaceholderText('100');
       fireEvent.change(amountInput, { target: { value: '100' } });
       await clickContinueWhenEnabled();
-      expect(await screen.findByText('Phone number must be exactly 9 digits')).toBeInTheDocument();
+      expect(await screen.findByText('Enter a 9-digit number, like 743913802 or 0743913802')).toBeInTheDocument();
     });
 
     it('rejects an amount outside the allowed range for the selected country', async () => {
