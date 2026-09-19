@@ -222,6 +222,12 @@
   appearance: none !important;
 }
 
+.phoneInput.phoneInputValid,
+.phoneInput.phoneInputValid:focus {
+  border-color: #66bb6a;
+  box-shadow: 0 0 0 3px rgba(102, 187, 106, 0.18);
+}
+
 .firstStepCard .phoneInput {
   padding: 0.65rem 0.75rem 0.65rem 2rem;
   font-size: 0.95rem;

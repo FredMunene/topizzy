@@ -359,11 +359,30 @@ describe('Platform page', () => {
 
       it('does not treat a 9-character entry that still starts with 0 as complete', async () => {
         renderPlatform();
-        typePhone('074391380');
+        const input = typePhone('074391380');
         fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
-        await waitFor(() => expect(getContinueButton()).not.toBeDisabled());
-        fireEvent.click(getContinueButton());
-        expect(await screen.findByText('Enter a 9-digit number, like 743913802 or 0743913802')).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByPlaceholderText('100')).toHaveValue(100));
+        expect(input).not.toHaveClass(styles.phoneInputValid);
+        expect(getContinueButton()).toBeDisabled();
+      });
+
+      it('turns the phone box border green for a complete number', () => {
+        renderPlatform();
+        const input = typePhone('743913802');
+        expect(input).toHaveClass(styles.phoneInputValid);
+      });
+
+      it('turns the border green when a leading-0 number reaches 10 digits and is stripped', () => {
+        renderPlatform();
+        const input = typePhone('074391380');
+        expect(input).not.toHaveClass(styles.phoneInputValid);
+        typePhone('0743913802');
+        expect(input).toHaveClass(styles.phoneInputValid);
+      });
+
+      it('leaves the border neutral for an incomplete number', () => {
+        renderPlatform();
+        expect(typePhone('74391')).not.toHaveClass(styles.phoneInputValid);
       });
 
       it('creates the order with the stripped number when typed with a leading 0', async () => {
@@ -377,14 +396,13 @@ describe('Platform page', () => {
       });
     });
 
-    it('shows an error for a phone number that is not 9 digits', async () => {
+    it('keeps Continue disabled, with no error text, for a phone number that is not 9 digits', async () => {
       renderPlatform();
-      const phoneInput = screen.getByPlaceholderText('743913802');
-      fireEvent.change(phoneInput, { target: { value: '12345' } });
-      const amountInput = screen.getByPlaceholderText('100');
-      fireEvent.change(amountInput, { target: { value: '100' } });
-      await clickContinueWhenEnabled();
-      expect(await screen.findByText('Enter a 9-digit number, like 743913802 or 0743913802')).toBeInTheDocument();
+      fireEvent.change(screen.getByPlaceholderText('743913802'), { target: { value: '12345' } });
+      fireEvent.change(screen.getByPlaceholderText('100'), { target: { value: '100' } });
+      await waitFor(() => expect(screen.getByPlaceholderText('100')).toHaveValue(100));
+      expect(getContinueButton()).toBeDisabled();
+      expect(screen.queryByText(/9-digit/)).not.toBeInTheDocument();
     });
 
     it('rejects an amount outside the allowed range for the selected country', async () => {

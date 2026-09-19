@@ -294,6 +294,9 @@ export default function Home() {
   }, [activeChainConfig]);
 
   const fullPhoneNumber = selectedCountry.prefix + phoneNumber;
+  // 9 digits and no leading 0: a leading 0 is only stripped once the 10th
+  // digit arrives, so a 9-character entry still starting with 0 isn't done.
+  const isPhoneComplete = phoneNumber.length === 9 && !phoneNumber.startsWith('0');
   const currencyMap: { [key: string]: string } = {
     "KE": "KES",
     "TZ": "TZS",
@@ -740,16 +743,9 @@ export default function Home() {
     }
 
     // istanbul ignore next -- unreachable for the same reason: continueDisabled
-    // already checks !phoneNumber.
-    if (!phoneNumber) {
+    // requires a complete phone number (isPhoneComplete).
+    if (!isPhoneComplete) {
       setValidationError("Please enter a phone number");
-      return;
-    }
-
-    // Still starting with 0 means the 10th digit hasn't arrived yet (that's
-    // when the 0 is stripped), so it isn't a complete number either.
-    if (phoneNumber.length !== 9 || phoneNumber.startsWith('0')) {
-      setValidationError("Enter a 9-digit number, like 743913802 or 0743913802");
       return;
     }
 
@@ -807,7 +803,7 @@ export default function Home() {
 
   // Normalized connection flags and button labels (avoid nested ternaries and negated conditions)
   const isConnected = Boolean(effectiveAddress);
-  const continueDisabled = createOrderMutation.isPending || !isConnected || !phoneNumber || !amountKes || !!validationError || isPriceLoading;
+  const continueDisabled = createOrderMutation.isPending || !isConnected || !isPhoneComplete || !amountKes || !!validationError || isPriceLoading;
 
   // Total USDC available for this transaction after holding back gas
   // (nonzero only on chains where USDC also pays for gas, e.g. Arc).
@@ -1031,7 +1027,7 @@ export default function Home() {
                       placeholder="743913802"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(normalizePhoneInput(e.target.value))}
-                      className={styles.phoneInput}
+                      className={`${styles.phoneInput} ${isPhoneComplete ? styles.phoneInputValid : ''}`}
                       maxLength={10}
                     />
                   </div>
