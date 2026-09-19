@@ -41,6 +41,20 @@ const countries = [
   { code: 'ZA', name: 'South Africa', prefix: '+27' }
 ];
 
+/**
+ * Phone input: accepts the number with or without the local leading 0
+ * (743913802 or 0743913802). A leading 0 is kept while typing and only
+ * stripped once the 10th digit arrives, so the field never jumps under the
+ * user's fingers; anything else is capped at 9 digits.
+ */
+function normalizePhoneInput(raw: string): string {
+  const digits = raw.replaceAll(/\D/g, '');
+  if (digits.startsWith('0')) {
+    return digits.length >= 10 ? digits.slice(1, 10) : digits;
+  }
+  return digits.slice(0, 9);
+}
+
 /** Fixed 2-decimal precision for every USDC amount shown to the user. */
 function fmtUsdc(n: number): string {
   return n.toFixed(2);
@@ -280,6 +294,9 @@ export default function Home() {
   }, [activeChainConfig]);
 
   const fullPhoneNumber = selectedCountry.prefix + phoneNumber;
+  // 9 digits and no leading 0: a leading 0 is only stripped once the 10th
+  // digit arrives, so a 9-character entry still starting with 0 isn't done.
+  const isPhoneComplete = phoneNumber.length === 9 && !phoneNumber.startsWith('0');
   const currencyMap: { [key: string]: string } = {
     "KE": "KES",
     "TZ": "TZS",
@@ -726,14 +743,9 @@ export default function Home() {
     }
 
     // istanbul ignore next -- unreachable for the same reason: continueDisabled
-    // already checks !phoneNumber.
-    if (!phoneNumber) {
+    // requires a complete phone number (isPhoneComplete).
+    if (!isPhoneComplete) {
       setValidationError("Please enter a phone number");
-      return;
-    }
-
-    if (phoneNumber.length !== 9) {
-      setValidationError("Phone number must be exactly 9 digits");
       return;
     }
 
@@ -791,7 +803,7 @@ export default function Home() {
 
   // Normalized connection flags and button labels (avoid nested ternaries and negated conditions)
   const isConnected = Boolean(effectiveAddress);
-  const continueDisabled = createOrderMutation.isPending || !isConnected || !phoneNumber || !amountKes || !!validationError || isPriceLoading;
+  const continueDisabled = createOrderMutation.isPending || !isConnected || !isPhoneComplete || !amountKes || !!validationError || isPriceLoading;
 
   // Total USDC available for this transaction after holding back gas
   // (nonzero only on chains where USDC also pays for gas, e.g. Arc).
@@ -1014,9 +1026,9 @@ export default function Home() {
                       type="tel"
                       placeholder="743913802"
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value.replaceAll(/\D/g, ''))}
-                      className={styles.phoneInput}
-                      maxLength={9}
+                      onChange={(e) => setPhoneNumber(normalizePhoneInput(e.target.value))}
+                      className={`${styles.phoneInput} ${isPhoneComplete ? styles.phoneInputValid : ''}`}
+                      maxLength={10}
                     />
                   </div>
                 </div>
